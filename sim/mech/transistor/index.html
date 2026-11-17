@@ -1,0 +1,604 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Transistor Bench · Spintronics</title>
+<script type="importmap">
+{
+  "imports": {
+    "three": "https://cdn.jsdelivr.net/npm/three@0.160.0/build/three.module.js",
+    "three/addons/": "https://cdn.jsdelivr.net/npm/three@0.160.0/examples/jsm/"
+  }
+}
+</script>
+<style>
+:root{color-scheme:dark;font:14px system-ui,sans-serif;color:#e8ece5;background:#111916;--panel:#1a241e;--line:#37463b;--muted:#a8b5aa;--green:#afe4b8;--amber:#ffc37b}
+*{box-sizing:border-box}
+body{margin:0}
+button,select,input{font:inherit}
+button,select{padding:8px 12px;border:1px solid #526458;border-radius:6px;color:inherit;background:#223129}
+button{cursor:pointer}
+button:hover,select:hover{border-color:var(--green)}
+:focus-visible{outline:2px solid var(--green);outline-offset:3px}
+main{max-width:1480px;margin:auto;padding:24px clamp(14px,3vw,44px)}
+header{display:flex;justify-content:space-between;align-items:end;gap:16px;flex-wrap:wrap;margin-bottom:20px}
+h1,h2,p{margin:0}
+h1{font-size:clamp(29px,3.8vw,49px);line-height:1.07;font-weight:650;letter-spacing:-.055em}
+h2{font-size:14px;font-weight:650}
+small,.caption,.overlay{color:var(--muted)}
+.kicker,.eyeline{font:650 10px ui-monospace,monospace;letter-spacing:.14em;text-transform:uppercase}
+.kicker{margin:0 0 7px;color:var(--green)}
+.toolbar{display:flex;align-items:end;gap:8px;flex-wrap:wrap}
+.toolbar label,.select-row label{display:grid;gap:5px}
+#pause{min-width:74px;color:#172c20;background:var(--green);border-color:var(--green);font-weight:700}
+.bench{display:grid;grid-template-columns:minmax(0,1fr) clamp(300px,29%,350px);overflow:hidden;border:1px solid var(--line);border-radius:12px;background:var(--panel)}
+.stage{position:relative;min-height:650px;isolation:isolate;overflow:hidden;background:#19241f}
+#view,.tags{position:absolute;inset:0}
+#view canvas{display:block;width:100%;height:100%;touch-action:none}
+.overlay,.tags{pointer-events:none}
+.overlay{position:absolute;z-index:1;left:20px;right:20px;display:flex;justify-content:space-between;gap:12px;font-size:11px}
+.overlay.top{top:19px;align-items:start}
+.overlay.bottom{bottom:16px}
+.overlay strong{color:var(--green);font:650 11px ui-monospace,monospace;white-space:nowrap}
+.tag{position:absolute;display:flex;align-items:center;gap:6px;transform:translateY(-50%);white-space:nowrap;color:#ebece3;font:650 10px ui-monospace,monospace}
+.tag::before{content:"";width:22px;height:1px;background:#a3b1a2}
+.tag span{padding:4px 6px;border:1px solid #6d7e70;border-radius:3px;background:#15201bea}
+.tag.reverse{flex-direction:row-reverse;transform:translate(-100%,-50%)}
+.sidebar{min-width:0;border-left:1px solid var(--line)}
+.sidebar section{padding:15px 17px;border-bottom:1px solid var(--line)}
+.sidebar section:last-child{border-bottom:0}
+.section-title,.reading,.select-row{display:flex;justify-content:space-between;align-items:baseline;gap:10px}
+#scope{display:block;width:100%;height:154px;margin:10px 0;background:#111b16;border:1px solid #33453a;border-radius:6px}
+.reading{font:650 14px ui-monospace,monospace;justify-content:start;gap:13px}
+.reading #effort{color:var(--amber)}
+.reading #flow{color:var(--green)}
+.select-row{margin:9px 0;align-items:center}
+.select-row select{font-size:11px;padding:4px 6px}
+.slider{display:grid;grid-template-columns:1fr auto;gap:3px 8px;align-items:center;margin-top:8px;font-size:11px;color:#d2dbd1}
+.slider output{font:11px ui-monospace,monospace;color:#f1f0e8}
+.slider input{grid-column:1/-1;width:100%;margin:0;accent-color:var(--green)}
+.caption{font-size:11px;line-height:1.4}
+#mechanism-note{margin:12px 0 0}
+#status{position:absolute;z-index:3;top:56px;left:20px;right:20px;padding:12px;border:1px solid #6d5740;border-radius:6px;background:#2a281f;color:var(--amber)}
+[hidden]{display:none!important}
+@media(max-width:850px){
+  .bench{grid-template-columns:1fr}
+  .stage{min-height:clamp(420px,69vw,590px)}
+  .sidebar{display:grid;grid-template-columns:1fr 1fr;border-left:0;border-top:1px solid var(--line)}
+  .sidebar section:first-child{grid-row:span 2;border-right:1px solid var(--line);border-bottom:0}
+}
+@media(max-width:550px){
+  .sidebar{display:block}
+  .sidebar section:first-child{border-right:0;border-bottom:1px solid var(--line)}
+  .stage{min-height:410px}
+  .overlay{left:10px;right:10px}
+  .tag{font-size:9px}
+  .tag::before{width:10px}
+}
+</style>
+</head>
+<body>
+<main>
+  <header>
+    <div>
+      <p class="kicker">Spintronics</p>
+      <h1>Transistor Bench</h1>
+    </div>
+    <div class="toolbar">
+      <label><span class="eyeline">Mechanism</span>
+        <select id="mechanism" aria-label="Mechanism">
+          <option value="spring">Spring gate</option>
+          <option value="governor">Flyball governor</option>
+        </select>
+      </label>
+      <button id="reset" type="button">Reset</button>
+      <button id="pause" type="button" aria-pressed="false">Pause</button>
+    </div>
+  </header>
+  <div class="bench">
+    <section class="stage" aria-label="Interactive 3D cutaway">
+      <div id="view"></div>
+      <div class="tags" aria-hidden="true">
+        <div class="tag reverse" id="gate-tag"><span>Gate sprocket</span></div>
+        <div class="tag" id="actuator-tag"><span>Cam &amp; followers</span></div>
+        <div class="tag reverse" id="drum-tag"><span>Brake ring</span></div>
+      </div>
+      <div class="overlay top"><span class="eyeline">Mechanism cutaway</span><strong id="clock">0.00 s</strong></div>
+      <div class="overlay bottom"><span>Drag to orbit · scroll to zoom</span><strong id="brake-state" role="status">Stuck</strong></div>
+      <p id="status" role="alert" hidden></p>
+    </section>
+    <aside class="sidebar" aria-label="Bench controls">
+      <section>
+        <div class="section-title"><h2>Channel V–I</h2><span class="caption" id="opening">0% open</span></div>
+        <canvas id="scope" aria-label="Live channel tension difference versus signed chain speed"></canvas>
+        <div class="reading"><span id="effort">0.00 N</span><span id="flow">0.00 m/s</span></div>
+      </section>
+      <section>
+        <h2>Drive</h2>
+        <div class="select-row">
+          <label for="drive-mode">Channel source</label>
+          <select id="drive-mode"><option value="torque">Torque</option><option value="speed">Speed</option></select>
+        </div>
+        <div id="drive-sliders"></div>
+      </section>
+      <section>
+        <h2>Mechanism parameters</h2>
+        <div id="params"></div>
+        <p class="caption" id="mechanism-note"></p>
+      </section>
+    </aside>
+  </div>
+</main>
+
+<script type="module">
+import {create, defaults, STEP} from './model.js';
+
+const $ = id => document.getElementById(id);
+const tau = 2 * Math.PI;
+const clamp = (x, low, high) => Math.min(high, Math.max(low, x));
+const drawScale = 60; // world units per metre
+const source = $('drive-mode');
+const mechanism = $('mechanism');
+const plot = $('scope');
+const scope = plot.getContext('2d');
+const stateLabel = $('brake-state');
+let model, values, waveform, paused = false, trace = [];
+
+function fail(error) {
+  $('status').hidden = false;
+  $('status').textContent = error.message;
+  console.error(error);
+}
+
+function slider(parent, {label, unit, min, max, step, value, digits}, changed) {
+  const row = document.createElement('label');
+  row.className = 'slider';
+  const name = document.createElement('span');
+  name.textContent = label;
+  const output = document.createElement('output');
+  const input = document.createElement('input');
+  Object.assign(input, {type:'range', min, max, step, value});
+  function update() {
+    const number = input.valueAsNumber;
+    output.value = number.toFixed(digits) + (unit ? ' ' + unit : '');
+    return number;
+  }
+  update();
+  input.addEventListener('input', () => changed(update()));
+  row.append(name, output, input);
+  parent.append(row);
+}
+
+function reset() {
+  model = create({...values, mechanism:mechanism.value});
+  trace = [];
+}
+
+function buildInputs(resetParameters = true) {
+  const governor = mechanism.value === 'governor';
+  const speed = source.value === 'speed';
+  const controls = $('drive-sliders');
+  controls.replaceChildren();
+  waveform = {gate:governor ? 0.90 : 0.08, bias:speed ? 0.11 : 0.58, amplitude:speed ? 0.55 : 0.57, hz:0.85};
+  const channelUnit = speed ? 'm/s' : 'N';
+  const driveSettings = [
+    ['gate', governor ? 'Gate chain speed' : 'Gate tension difference', governor ? 'm/s' : 'N',
+      governor ? 0 : -0.05, governor ? 1.55 : 0.25, 0.005, 3],
+    ['bias', 'Channel bias', channelUnit, -2, 2, 0.01, 2],
+    ['amplitude', 'Channel amplitude', channelUnit, 0, 2, 0.01, 2],
+    ['hz', 'Frequency', 'Hz', 0.15, 8, 0.05, 2],
+  ];
+  for (const [key,label,unit,min,max,step,digits] of driveSettings) {
+    slider(controls, {label,unit,min,max,step,digits,value:waveform[key]}, value => {
+      waveform[key] = value;
+      trace = [];
+    });
+  }
+  if (resetParameters) values = {...defaults};
+  const params = $('params');
+  params.replaceChildren();
+  const mechanismSettings = [
+    governor ? ['governorPreload','Flyball preload','N',0.01,0.2,0.005,3] :
+      ['fullGateEffort','Full-open gate effort','N',0.13,0.23,0.005,3],
+    ['padStiffness','Brake stiffness','N/m',2200,7400,100,0],
+    ['muStatic','Static friction coefficient','',0.60,0.95,0.01,2],
+    ['muKinetic','Kinetic friction coefficient','',0.20,0.60,0.01,2],
+    ['channelDrag','Channel damping','µN·m·s/rad',80,500,10,0,1e6],
+  ];
+  for (const [key,label,unit,min,max,step,digits,scale=1] of mechanismSettings) {
+    slider(params, {label,unit,min,max,step,digits,value:values[key]*scale}, value => {
+      values[key] = value / scale;
+      reset();
+    });
+  }
+  $('mechanism-note').textContent = governor
+    ? 'Outward flyball travel presses the shoes against the ring.'
+    : 'Gate travel releases the shoes. Brake geometry and friction are estimates.';
+  $('actuator-tag').firstElementChild.textContent = governor ? 'Flyball governor' : 'Cam & followers';
+  reset();
+}
+
+function advance() {
+  const speed = source.value === 'speed';
+  const governor = mechanism.value === 'governor';
+  const command = waveform.bias + waveform.amplitude * Math.sin(tau * waveform.hz * (model.state.time + STEP));
+  model.step(STEP, {
+    gate: governor ? {speed:waveform.gate / values.gateRadius} : {torque:waveform.gate * values.gateRadius},
+    channel: speed ? {speed:command / values.channelRadius} : {torque:command * values.channelRadius},
+  });
+}
+
+function drawScope() {
+  const width = plot.clientWidth;
+  const height = plot.clientHeight;
+  const dpi = Math.min(window.devicePixelRatio, 2);
+  const pixelsW = Math.round(width * dpi), pixelsH = Math.round(height * dpi);
+  if (plot.width !== pixelsW || plot.height !== pixelsH) {
+    plot.width = pixelsW;
+    plot.height = pixelsH;
+  }
+  scope.setTransform(dpi,0,0,dpi,0,0);
+  scope.clearRect(0,0,width,height);
+  const left = 34, right = width - 13, top = 16, bottom = height - 23;
+  const maxI = Math.max(1, ...trace.map(point => Math.abs(point.I) * 1.06));
+  const maxV = Math.max(1, ...trace.map(point => Math.abs(point.V) * 1.06));
+  const x = i => left + (i / maxI + 1) * (right - left) / 2;
+  const y = v => top + (1 - v / maxV) * (bottom - top) / 2;
+  scope.font = '10px ui-monospace, monospace';
+  scope.textBaseline = 'middle';
+  for (const t of [-1,-0.5,0,0.5,1]) {
+    scope.strokeStyle = t === 0 ? '#55695a' : '#2a3b31';
+    scope.beginPath();
+    scope.moveTo(left,y(t * maxV)); scope.lineTo(right,y(t * maxV));
+    scope.moveTo(x(t * maxI),top); scope.lineTo(x(t * maxI),bottom);
+    scope.stroke();
+  }
+  scope.fillStyle = '#9aab9d';
+  for (const t of [-1,0,1]) {
+    scope.textAlign = 'right';
+    scope.fillText((t * maxV).toFixed(1), left - 5, y(t * maxV));
+    scope.textAlign = 'center';
+    scope.fillText((t * maxI).toFixed(1), x(t * maxI), bottom + 11);
+  }
+  scope.fillStyle = '#ffc37b';
+  scope.textAlign = 'left';
+  scope.fillText('V (N)',left + 4,8);
+  scope.fillStyle = '#afe4b8';
+  scope.textAlign = 'right';
+  scope.fillText('I (m/s)',right - 2,8);
+  if (!trace.length) return;
+  scope.strokeStyle = '#afe4b8';
+  scope.lineWidth = 1.6;
+  scope.beginPath();
+  for (const [index, point] of trace.entries()) {
+    if (index) scope.lineTo(x(point.I),y(point.V));
+    else scope.moveTo(x(point.I),y(point.V));
+  }
+  scope.stroke();
+  scope.lineWidth = 1;
+  const latest = trace.at(-1);
+  scope.fillStyle = '#ffc37b';
+  scope.beginPath();
+  scope.arc(x(latest.I),y(latest.V),3,0,tau);
+  scope.fill();
+}
+
+async function boot() {
+  const [T,{OrbitControls}] = await Promise.all([import('three'),import('three/addons/controls/OrbitControls.js')]);
+  buildInputs();
+  const host = $('view');
+  const renderer = new T.WebGLRenderer({antialias:true});
+  renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
+  renderer.shadowMap.enabled = true;
+  renderer.shadowMap.type = T.PCFSoftShadowMap;
+  renderer.setClearColor(0x19241f);
+  host.append(renderer.domElement);
+
+  const scene = new T.Scene();
+  const camera = new T.OrthographicCamera(-6,6,4,-4,0.1,50);
+  camera.position.set(5.1,5.6,12.5);
+  const controls = new OrbitControls(camera, renderer.domElement);
+  controls.target.set(-0.3,1.53,0);
+  controls.enableDamping = true;
+  controls.minZoom = 0.65;
+  controls.maxZoom = 2.5;
+  controls.maxPolarAngle = Math.PI * 0.49;
+  controls.update();
+
+  scene.add(new T.HemisphereLight(0xfff3d9,0x627b6b,2.05));
+  const key = new T.DirectionalLight(0xffe4bc,2.35);
+  key.position.set(-4,9,5);
+  key.castShadow = true;
+  key.shadow.mapSize.set(1024,1024);
+  Object.assign(key.shadow.camera,{left:-8,right:8,top:7,bottom:-7,near:0.1,far:23});
+  key.shadow.normalBias = 0.035;
+  scene.add(key);
+
+  const material = (color, metalness=0.30, roughness=0.47) => new T.MeshStandardMaterial({color,metalness,roughness});
+  const steel = material(0xa2b8af,0.68,0.34);
+  const graphite = material(0x30423b,0.45);
+  const brass = material(0xc88d4d,0.65,0.37);
+  const copper = material(0xb67656,0.52,0.40);
+  const padsFinish = material(0xc29468,0.28);
+  const rubber = material(0xb95335,0.08,0.63);
+  const chainFinish = material(0xffffff,0.62,0.42);
+  const housing = new T.MeshStandardMaterial({color:0xa0b7a5,metalness:0.16,roughness:0.29,
+    transparent:true,opacity:0.23,side:T.DoubleSide,depthWrite:false});
+
+  function mesh(parent, geometry, finish, x=0,y=0,z=0, shadow=true) {
+    const object = new T.Mesh(geometry,finish);
+    object.position.set(x,y,z);
+    object.castShadow = shadow;
+    object.receiveShadow = shadow;
+    parent.add(object);
+    return object;
+  }
+  const box = (g,w,h,d,m,x,y,z,shadow) => mesh(g,new T.BoxGeometry(w,h,d),m,x,y,z,shadow);
+  const cylinder = (g,r,h,m,x,y,z) => mesh(g,new T.CylinderGeometry(r,r,h,48),m,x,y,z);
+  function ring(g,r,t,m,y=0,start=0,arc=tau) {
+    const object = mesh(g,new T.TorusGeometry(r,t,12,Math.max(12,Math.ceil(80*arc/tau)),arc),m,0,y,0);
+    object.rotation.set(Math.PI/2,0,start);
+    return object;
+  }
+  function group(parent,x=0,y=0,z=0) {
+    const result = new T.Group();
+    parent.add(result);
+    result.position.set(x,y,z);
+    return result;
+  }
+  function spring(parent, radius, pitch, turns, thickness, radialRise = 0) {
+    const points = Array.from({length:121},(_,index) => {
+      const f = index / 120, a = tau * turns * f, r = radius + f * radialRise;
+      return new T.Vector3(r*Math.cos(a),pitch*f,r*Math.sin(a));
+    });
+    return mesh(parent,new T.TubeGeometry(new T.CatmullRomCurve3(points),120,thickness,8,false),brass);
+  }
+
+  box(scene,14,0.23,10,material(0x33443a,0.08,0.86),0,-0.14,0);
+  box(scene,14.1,0.21,10.1,graphite,0,-0.35,0);
+  const grid = new T.GridHelper(10,20,0x576b5e,0x506354);
+  grid.position.y = -0.015;
+  grid.scale.x = 1.4;
+  scene.add(grid);
+  const base = group(scene);
+  cylinder(base,1.89,0.19,graphite,0,0.12,0);
+  ring(base,1.42,0.045,steel,0.21);
+  for (let i=0;i<6;i++) {
+    const a = i * tau / 6;
+    cylinder(base,0.075,0.08,steel,1.67*Math.cos(a),0.25,1.67*Math.sin(a));
+  }
+  cylinder(base,0.19,2.92,steel,0,1.68,0);
+  const cover = mesh(base,new T.CylinderGeometry(1.62,1.62,1.79,52,1,true,0.61*Math.PI,1.04*Math.PI),
+    housing,0,1.32,0,false);
+  cover.rotation.y = -0.63;
+  for (const a of [2.45,3.89,5.1]) {
+    cylinder(base,0.06,1.72,graphite,1.62*Math.cos(a),1.16,1.62*Math.sin(a));
+  }
+
+  const pathR = defaults.channelRadius * drawScale;
+  const gateR = defaults.gateRadius * drawScale;
+  function sprocket(g,r,teeth,finish,spoked=true) {
+    ring(g,r-0.10,0.095,finish);
+    cylinder(g,spoked ? r*0.29 : r-0.12,0.15,finish,0,0,0);
+    if (spoked) {
+      for (let i=0;i<5;i++) {
+        const arm = group(g);
+        arm.rotation.y = i * tau / 5;
+        box(arm,r*0.72,0.12,r*0.11,finish,r*0.55,0,0);
+      }
+    }
+    for (let i=0;i<teeth;i++) {
+      const tooth = group(g);
+      tooth.rotation.y = i * tau / teeth;
+      box(tooth,0.19,0.14,Math.min(0.13,r*0.31),finish,r-0.01,0,0);
+    }
+    cylinder(g,0.13,0.21,steel,0,0.05,0);
+  }
+  const upperY = 3.14, pathY = 0.64, drumY = 1.32;
+  const gate = group(scene,0,upperY,0);
+  const path = group(scene,0,pathY,0);
+  sprocket(gate,gateR,30,brass);
+  sprocket(path,pathR,17,copper);
+  cylinder(path,0.63,0.55,graphite,0,drumY-pathY-0.19,0);
+  const brakeRadius = defaults.drumRadius * drawScale;
+  cylinder(path,brakeRadius,0.30,copper,0,drumY-pathY,0);
+  ring(path,brakeRadius,0.085,rubber,drumY-pathY+0.035);
+  box(path,0.11,0.04,0.15,steel,0.57,drumY-pathY+0.152,0);
+
+  const springParts = group(scene);
+  const gateCoil = group(springParts,0,2.65,0);
+  spring(gateCoil,0.22,0.07,2.7,0.036,0.41);
+  const cam = group(springParts,0,2.02,0);
+  ring(cam,0.46,0.07,brass);
+  for (let i=0;i<3;i++) {
+    const lobe = group(cam);
+    lobe.rotation.y = i*tau/3;
+    box(lobe,0.32,0.14,0.15,brass,0.44,0,0);
+  }
+  const shoes = [];
+  const followers = [];
+  for (const angle of [0.18,0.18+tau/3,0.18+2*tau/3]) {
+    const jaw = group(base);
+    jaw.rotation.y = angle;
+    cylinder(jaw,0.085,0.13,steel,1.38,1.43,0);
+    const shoe = group(jaw);
+    box(shoe,0.47,0.16,0.22,graphite,0.20,0,0);
+    box(shoe,0.12,0.16,0.27,padsFinish,0,0,0);
+    shoes.push(shoe);
+    const follower = group(springParts);
+    follower.rotation.y = angle;
+    const ball = mesh(follower,new T.SphereGeometry(0.105,18,12),steel,0,2.03,0);
+    const arm = box(follower,0.105,0.72,0.10,copper,0,1.68,0);
+    arm.rotation.z = 0.42;
+    followers.push({ball,arm});
+  }
+
+  const governor = group(scene,0,2.18,0);
+  const flyballs = [];
+  cylinder(governor,0.30,0.19,brass,0,0.03,0);
+  const collar = cylinder(scene,0.31,0.17,steel,0,1.82,0);
+  for (const a of [0,Math.PI]) {
+    const sliderArm = group(governor);
+    sliderArm.rotation.y = a;
+    box(sliderArm,1.29,0.09,0.13,graphite,0.87,0,0);
+    const ball = mesh(sliderArm,new T.SphereGeometry(0.19,24,16),steel,0,0.08,0);
+    const link = box(sliderArm,0.75,0.065,0.10,brass,0,0,0);
+    link.rotation.z = 0.30;
+    flyballs.push({ball,link});
+  }
+
+  const pose = new T.Object3D();
+  const slack = new T.Color(0x809e91), taut = new T.Color(0xeeb277), color = new T.Color();
+  function chain(radius, idlerR, y, idlerX, idlerZ) {
+    const idler = group(scene,idlerX,y,idlerZ);
+    sprocket(idler,idlerR,10,graphite,false);
+    cylinder(scene,0.105,y-0.12,graphite,idlerX,(y-0.12)/2,idlerZ);
+    const separation = Math.hypot(idlerX,idlerZ);
+    const heading = Math.atan2(idlerZ,idlerX);
+    const beta = Math.acos((radius-idlerR)/separation);
+    const a = heading+beta, b = heading-beta;
+    const node = (x,z,r,angle) => new T.Vector3(x+r*Math.cos(angle),y,z+r*Math.sin(angle));
+    const line = (from,to) => ({
+      length:from.distanceTo(to),
+      sample(f){pose.position.copy(from).lerp(to,f); return Math.atan2(to.z-from.z,to.x-from.x);},
+    });
+    const arc = (x,z,r,start,angle) => ({
+      length:r*angle,
+      sample(f){
+        const a = start-f*angle;
+        pose.position.set(x+r*Math.cos(a),y,z+r*Math.sin(a));
+        return a-Math.PI/2;
+      },
+    });
+    const sections = [
+      line(node(0,0,radius,a),node(idlerX,idlerZ,idlerR,a)),
+      arc(idlerX,idlerZ,idlerR,a,2*beta),
+      line(node(idlerX,idlerZ,idlerR,b),node(0,0,radius,b)),
+      arc(0,0,radius,b,tau-2*beta),
+    ];
+    const length = sections.reduce((sum,section) => sum+section.length,0);
+    const count = Math.round(length/0.20);
+    const links = new T.InstancedMesh(new T.BoxGeometry(0.182,0.084,0.086),chainFinish,count);
+    links.instanceMatrix.setUsage(T.DynamicDrawUsage);
+    links.frustumCulled = false;
+    links.castShadow = true;
+    links.receiveShadow = true;
+    scene.add(links);
+    return (theta, effort) => {
+      const travel = ((theta*radius)%length+length)%length;
+      idler.rotation.y = theta*radius/idlerR;
+      for (let i=0;i<count;i++) {
+        let distance = (travel+i*length/count)%length;
+        for (const section of sections) {
+          if (distance >= section.length) {
+            distance -= section.length;
+            continue;
+          }
+          pose.rotation.set(i%2 ? 0 : Math.PI/2,-section.sample(distance/section.length),0,'YXZ');
+          pose.updateMatrix();
+          links.setMatrixAt(i,pose.matrix);
+          links.setColorAt(i,color.copy(slack).lerp(taut,clamp(Math.abs(effort)*1.2,0,1)).multiplyScalar(i%2?0.79:1));
+          break;
+        }
+      }
+      links.instanceMatrix.needsUpdate = true;
+      links.instanceColor.needsUpdate = true;
+    };
+  }
+
+  const upperChain = chain(gateR,0.62,upperY,-4.30,0.33);
+  const lowerChain = chain(pathR,0.58,pathY,3.28,0.71);
+  const projection = new T.Vector3();
+  function label(id,x,y,z) {
+    projection.set(x,y,z).project(camera);
+    const element = $(id);
+    const u = (projection.x+1)*host.clientWidth/2;
+    const v = (1-projection.y)*host.clientHeight/2;
+    element.hidden = u < 14 || u > host.clientWidth-14 || v < 36 || v > host.clientHeight-40;
+    element.style.left = u + 'px';
+    element.style.top = v + 'px';
+  }
+  function resize() {
+    const width = host.clientWidth, height = host.clientHeight;
+    const aspect = width / height;
+    const span = Math.max(2.9, 5.55 / aspect);
+    Object.assign(camera,{left:-span*aspect,right:span*aspect,top:span,bottom:-span});
+    camera.updateProjectionMatrix();
+    renderer.setSize(width,height,false);
+    drawScope();
+  }
+
+  new ResizeObserver(resize).observe(host);
+  new ResizeObserver(drawScope).observe(plot);
+  resize();
+  $('reset').addEventListener('click',reset);
+  $('pause').addEventListener('click',event => {
+    paused = !paused;
+    event.target.textContent = paused ? 'Resume' : 'Pause';
+    event.target.setAttribute('aria-pressed',String(paused));
+  });
+  source.addEventListener('change',() => buildInputs(false));
+  mechanism.addEventListener('change',() => buildInputs());
+
+  let previous, accumulator = 0;
+  function frame(now) {
+    const elapsed = previous === undefined ? 0 : Math.min(0.07,(now-previous)/1000);
+    previous = now;
+    if (!paused) {
+      accumulator += elapsed;
+      while (accumulator >= STEP) {
+        advance();
+        accumulator -= STEP;
+      }
+      const {channel} = model.ports;
+      trace.push({time:model.state.time,V:channel.V,I:channel.I});
+      const duration = Math.max(1.3,1.5/waveform.hz);
+      trace = trace.filter(point => model.state.time-point.time < duration).slice(-900);
+    }
+
+    const s = model.state;
+    const governorActive = mechanism.value === 'governor';
+    gate.rotation.y = s.gate.angle;
+    path.rotation.y = s.channel.angle;
+    cam.rotation.y = s.gate.angle;
+    gateCoil.rotation.y = s.gate.angle*0.5;
+    governor.rotation.y = s.gate.angle;
+    springParts.visible = !governorActive;
+    governor.visible = collar.visible = governorActive;
+    const lift = s.gate.opening;
+    collar.position.y = 1.83 - (1-lift)*0.21;
+    for (const shoe of shoes) shoe.position.set(brakeRadius+0.10+0.22*lift,drumY+0.035,0);
+    for (const {ball,arm} of followers) {
+      ball.position.x = 0.81-0.22*lift;
+      arm.position.x = 0.78+0.22*lift;
+    }
+    for (const {ball,link} of flyballs) {
+      ball.position.x = defaults.flyballRadius*drawScale + (1-lift)*0.27;
+      link.position.set(ball.position.x*0.51,-0.13,0);
+    }
+    upperChain(s.gate.angle,model.ports.gate.V);
+    lowerChain(s.channel.angle,model.ports.channel.V);
+    controls.update();
+    renderer.render(scene,camera);
+    label('gate-tag',-0.87,3.23,0.95);
+    label('actuator-tag',0.91,2.08,0.26);
+    label('drum-tag',-0.66,1.29,0.62);
+    $('clock').textContent = s.time.toFixed(2)+' s';
+    const stateText = s.channel.stuck ? 'Stuck' : (s.normalForce > 0 ? 'Brake in contact' : 'Brake clear');
+    if (stateLabel.textContent !== stateText) stateLabel.textContent = stateText;
+    $('opening').textContent = Math.round(lift*100)+'% open';
+    $('effort').textContent = model.ports.channel.V.toFixed(2)+' N';
+    $('flow').textContent = model.ports.channel.I.toFixed(2)+' m/s';
+    drawScope();
+    requestAnimationFrame(safeFrame);
+  }
+  function safeFrame(now) {
+    try { frame(now); } catch (error) { fail(error); }
+  }
+  requestAnimationFrame(safeFrame);
+}
+boot().catch(fail);
+</script>
+</body>
+</html>

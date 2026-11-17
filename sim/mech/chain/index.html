@@ -1,0 +1,541 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Spintronics · Chain & energy storage</title>
+<script type="importmap">
+{"imports":{"three":"https://cdn.jsdelivr.net/npm/three@0.160.0/build/three.module.js","three/addons/":"https://cdn.jsdelivr.net/npm/three@0.160.0/examples/jsm/"}}
+</script>
+<style>
+:root{color-scheme:dark;font:14px system-ui,sans-serif;color:#e8ece5;background:#111916;--panel:#1a241e;--line:#37463b;--muted:#a9b6ad;--green:#9bdfab;--amber:#ffc37b}
+*{box-sizing:border-box}body{margin:0}main{max-width:1450px;margin:auto;padding:32px clamp(16px,4vw,60px)}
+header{display:flex;justify-content:space-between;align-items:end;gap:18px;margin-bottom:20px;flex-wrap:wrap}
+h1{font-size:clamp(25px,4vw,40px);letter-spacing:-.045em;line-height:1.08;margin:0 0 7px}header p{margin:0;color:var(--muted)}
+button,select{font:inherit;color:inherit;background:#24332a;border:1px solid #4a5950;border-radius:6px;padding:8px 12px}
+button{cursor:pointer}button:hover{border-color:var(--green)}button:focus-visible,select:focus-visible,input:focus-visible{outline:2px solid var(--green);outline-offset:3px}
+.actions{display:flex;gap:7px;flex-wrap:wrap}#pause{background:#b0e7ba;color:#14291c;font-weight:700;min-width:74px}
+.bench{display:grid;grid-template-columns:minmax(0,1fr) 325px;border:1px solid var(--line);border-radius:12px;overflow:hidden;background:var(--panel)}
+.stage{position:relative;min-height:600px;background:#19241f}#view{position:absolute;inset:0}#view canvas{display:block;touch-action:none}
+.hud{position:absolute;inset:18px 18px auto;display:flex;justify-content:space-between;gap:8px;pointer-events:none}
+.tag{border:1px solid #637569;background:#15211be8;border-radius:5px;padding:6px 9px;font:600 11px ui-monospace,monospace}
+.tag:first-child{color:var(--amber)}.tag:last-child{color:#add3e0}
+.caption{position:absolute;inset:auto 18px 16px;display:flex;justify-content:space-between;gap:10px;color:#c3cdc4;font-size:11px;pointer-events:none}
+.legend{display:flex;gap:7px;align-items:center}.legend i{display:block;width:50px;height:3px;border-radius:3px;background:linear-gradient(90deg,#577c70,#f4b770)}
+aside{border-left:1px solid var(--line);padding:17px;display:grid;align-content:start;gap:14px}
+fieldset{border:0;margin:0;padding:0;min-width:0;display:grid;gap:9px}label,legend{font-size:12px}legend{padding:0;margin-bottom:7px;color:var(--muted);font-weight:650}
+select{width:100%;padding:6px 8px}.slider{display:grid;gap:3px}.slider span{display:flex;justify-content:space-between;gap:10px}
+output,.readout dd{font:12px ui-monospace,monospace;color:var(--green);font-variant-numeric:tabular-nums}
+input[type=range]{margin:0;width:100%;accent-color:#9bdfab}
+.scope{border-top:1px solid var(--line);padding-top:12px}.scope h2{font-size:13px;font-weight:650;margin:0 0 8px}
+#partControls,#driveControls,#chainControls{display:grid;gap:7px}#partControls:empty,#driveControls:empty{display:none}
+#plot{display:block;width:100%;height:150px;border:1px solid var(--line);border-radius:6px;background:#121c17}
+.readout{display:grid;grid-template-columns:1fr auto;gap:5px 10px;margin:10px 0 0;font-size:12px}
+.readout dt{color:var(--muted)}.readout dd{margin:0;text-align:right}#motorStatus{margin:0;color:var(--amber);font-size:12px}
+#status{position:absolute;inset:65px 18px auto;margin:0;background:#342a1c;border:1px solid #705938;border-radius:6px;color:var(--amber);padding:12px;white-space:pre-wrap}
+footer{margin-top:12px;color:var(--muted);font-size:12px}a{color:var(--green)}
+@media(max-width:820px){.bench{grid-template-columns:1fr}.stage{min-height:clamp(290px,63vw,500px)}aside{border-left:0;border-top:1px solid var(--line);grid-template-columns:repeat(2,minmax(0,1fr))}.scope{grid-column:1/-1}}
+@media(max-width:440px){main{padding:22px 12px}.caption{inset:auto 10px 12px}.hud{inset:12px 10px auto}aside{padding:12px}.tag{font-size:10px}}
+</style>
+</head>
+<body>
+<main>
+  <header>
+    <div><h1>Chain &amp; energy storage</h1><p>Spintronics mechanism bench</p></div>
+    <div class="actions"><button id="reset">Reset</button><button id="rewind" hidden>Rewind motor</button><button id="pause">Pause</button></div>
+  </header>
+  <section class="bench" aria-label="Mechanism bench">
+    <div class="stage">
+      <div id="view" aria-label="Interactive 3D cutaway"></div>
+      <div class="hud"><span class="tag" id="leftTag"></span><span class="tag" id="rightTag"></span></div>
+      <div class="caption"><span>Drag to orbit · scroll to zoom</span><span class="legend">Slack <i></i> Taut</span></div>
+      <p id="status" role="alert" hidden></p>
+    </div>
+    <aside>
+      <fieldset>
+        <legend>Experiment</legend>
+        <select id="rig" aria-label="Experiment">
+          <option value="lc">Capacitor + flywheel</option><option value="inerter">Capacitor + ball-screw inerter</option>
+          <option value="motor">Spring motor + flywheel</option><option value="chain">Chain ripple</option>
+        </select>
+        <div id="partControls"></div>
+      </fieldset>
+      <fieldset>
+        <legend>Drive and chain</legend>
+        <select id="drive" aria-label="Left shaft drive">
+          <option value="free">Free shafts</option><option value="torque">Left shaft · constant torque</option>
+          <option value="ac">Left shaft · alternating torque</option><option value="speed">Both shafts · matched mean speed</option>
+        </select>
+        <div id="driveControls"></div>
+        <label><input id="polygonal" type="checkbox" checked> Polygonal tooth engagement</label>
+        <div id="chainControls"></div>
+      </fieldset>
+      <div class="scope">
+        <h2>Left sprocket · chain effort vs. rim speed</h2>
+        <canvas id="plot" aria-label="Live voltage versus current trace"></canvas>
+        <dl class="readout">
+          <dt>V · chain torque / radius</dt><dd id="volts">0.000 N</dd>
+          <dt>I · nominal rim speed</dt><dd id="amps">0.000 m/s</dd>
+          <dt>Actual chain feed</dt><dd id="feed">0.000 m/s</dd>
+        </dl>
+      </div>
+      <p id="motorStatus" hidden></p>
+    </aside>
+  </section>
+  <footer>Model parameters, assumptions and benchmark results in the <a href="./REPORT.md">mechanism report</a>.</footer>
+</main>
+<script type="module">
+const $ = id => document.getElementById(id);
+const reportError = error => {
+  const status = $('status');
+  status.textContent = error.message;
+  status.hidden = false;
+  console.error(error);
+};
+
+async function run() {
+  const [T, {OrbitControls}, {CHAIN, KIT, PARTS, create, engagement}] = await Promise.all([
+    import('three'), import('three/addons/controls/OrbitControls.js'), import('./model.js'),
+  ]);
+  const TAU = 2 * Math.PI;
+  const FRAME = 1 / 240;
+  const SCALE = 72;
+  const Y = .52;
+  const rigs = {lc: ['capacitor', 'flywheel'], inerter: ['capacitor', 'inerter'],
+    motor: ['motor', 'flywheel'], chain: ['idler', 'idler']};
+  const titles = {capacitor: 'Capacitor · spiral spring', flywheel: 'Inductor · flywheel',
+    inerter: 'Inerter · ball screw', motor: 'Battery · spring motor', idler: 'Sprocket'};
+  const defaults = {prewind: KIT.voltage, capScale: 1, flyScale: 1, ratio: 1, source: KIT.voltage, trip: PARTS.motor.tripSpeed,
+    stiffness: CHAIN.stiffness, damping: CHAIN.damping, preload: CHAIN.preload, torque: .002, hz: .75, speed: .18};
+  const values = {...defaults};
+  let model, drawing, path, wheels, chainLinks, chainPins, paused = false, accumulator = 0, data = [], last = 0;
+  const renderer = new T.WebGLRenderer({antialias: true});
+  renderer.setPixelRatio(Math.min(window.devicePixelRatio || 1, 2));
+  renderer.setClearColor(0x19241f);
+  renderer.shadowMap.enabled = true;
+  renderer.shadowMap.type = T.PCFSoftShadowMap;
+  $('view').append(renderer.domElement);
+  const scene = new T.Scene();
+  const camera = new T.OrthographicCamera(-7, 7, 5, -5, .1, 70);
+  camera.position.set(2.8, 10.8, 11.5);
+  const orbit = new OrbitControls(camera, renderer.domElement);
+  orbit.enableDamping = true;
+  orbit.minZoom = .65;
+  orbit.maxZoom = 3.5;
+  orbit.maxPolarAngle = Math.PI * .48;
+  scene.add(new T.HemisphereLight(0xfff5df, 0x6b8273, 2.0));
+  const sun = new T.DirectionalLight(0xffe6bc, 2.15);
+  sun.position.set(-5, 9, 4);
+  sun.castShadow = true;
+  Object.assign(sun.shadow.camera, {left: -8, right: 8, top: 8, bottom: -8, near: .1, far: 25});
+  sun.shadow.mapSize.set(1024, 1024);
+  sun.shadow.normalBias = .025;
+  scene.add(sun, sun.target);
+
+  const mat = (color, metalness = .33, roughness = .43) => new T.MeshStandardMaterial({color, metalness, roughness});
+  const graphite = mat(0x30433b), metal = mat(0xaeccc3, .69), brass = mat(0xdda560, .63);
+  const blue = mat(0x779bb7, .39), red = mat(0xc26950), ivory = mat(0xf9ecc8, .18);
+  const boardMat = mat(0x35463d, .08, .84), seamMat = mat(0x43574b, .09, .85);
+  const glass = new T.MeshStandardMaterial({color: 0xb4d2c6, transparent: true, opacity: .17,
+    depthWrite: false, side: T.DoubleSide, roughness: .27});
+  const chainMat = mat(0xffffff, .53);
+  const strip = mat(0xdda560, .63);
+  strip.side = T.DoubleSide;
+  const loose = new T.Color(0x52746a), taut = new T.Color(0xf3b779), tint = new T.Color();
+  const position = new T.Object3D();
+
+  function mesh(group, geometry, material, x = 0, y = 0, z = 0) {
+    const m = new T.Mesh(geometry, material);
+    m.position.set(x, y, z);
+    m.castShadow = material !== glass;
+    m.receiveShadow = true;
+    group.add(m);
+    return m;
+  }
+  const disk = (g, r, h, m, x = 0, y = 0, z = 0) => mesh(g, new T.CylinderGeometry(r, r, h, 40), m, x, y, z);
+  const box = (g, x, y, z, m, dx = 0, dy = 0, dz = 0) => mesh(g, new T.BoxGeometry(x, y, z), m, dx, dy, dz);
+  function ring(g, r, thickness, material, y, arc = TAU) {
+    const m = mesh(g, new T.TorusGeometry(r, thickness, 8, 70, arc), material, 0, y);
+    m.rotation.x = -Math.PI / 2;
+    return m;
+  }
+
+  box(scene, 12.5, .32, 6.2, graphite, 0, -.24);
+  box(scene, 12.4, .10, 6.10, boardMat, 0, -.07);
+  for (let x = -5.6; x <= 5.61; x += .8) {
+    for (let z = -2.8; z <= 2.81; z += .8) disk(scene, .034, .012, seamMat, x, -.01, z);
+  }
+
+  function spiral(group, r) {
+    const points = 80;
+    const coords = new Float32Array(6 * (points + 1));
+    const geometry = new T.BufferGeometry();
+    const indices = [];
+    for (let i = 0; i < points; i++) {
+      const a = i * 2;
+      indices.push(a, a + 1, a + 2, a + 1, a + 3, a + 2);
+    }
+    geometry.setIndex(indices);
+    geometry.setAttribute('position', new T.BufferAttribute(coords, 3).setUsage(T.DynamicDrawUsage));
+    const m = mesh(group, geometry, strip, 0, 1.03);
+    m.frustumCulled = false;
+    return angle => {
+      for (let i = 0; i <= points; i++) {
+        const u = i / points;
+        const a = TAU * 2.9 * (u - 1) + (1 - u) * angle;
+        const radius = r * (.19 + .65 * u);
+        coords.set([radius * Math.cos(a), -.06, radius * Math.sin(a),
+          radius * Math.cos(a), .06, radius * Math.sin(a)], i * 6);
+      }
+      geometry.attributes.position.needsUpdate = true;
+      geometry.computeVertexNormals();
+    };
+  }
+
+  function sprocket(center, radius, shaft) {
+    const group = new T.Group(), rotor = new T.Group();
+    group.position.x = center;
+    group.add(rotor);
+    drawing.add(group);
+    disk(group, radius + .21, .19, graphite, 0, .092);
+    disk(rotor, radius - .14, .17, shaft.p.kind === 'flywheel' ? blue : graphite, 0, Y);
+    disk(rotor, radius * .20, .80, metal, 0, .67);
+    const n = shaft.p.teeth;
+    for (let j = 0; j < n; j++) {
+      const angle = j * TAU / n;
+      const tooth = box(rotor, .22, .17, .145, metal, (radius - .055) * Math.cos(angle), Y, (radius - .055) * Math.sin(angle));
+      tooth.rotation.y = -angle;
+    }
+    const shell = mesh(group, new T.CylinderGeometry(radius, radius, .52, 52, 1, true, 0, TAU * .70), glass, 0, .93);
+    shell.rotation.y = -.7;
+    ring(group, radius, .019, metal, 1.19, TAU * .62).rotation.z = -.2;
+    const bearing = disk(group, .19, .12, graphite, 0, .26);
+    bearing.castShadow = false;
+    let update = () => {};
+    if (shaft.p.kind === 'capacitor' || shaft.p.kind === 'motor') {
+      const wind = spiral(group, radius);
+      disk(rotor, radius * .20, .12, brass, 0, 1.12);
+      box(group, .10, .20, .18, brass, radius * .83, 1.02);
+      const pawl = shaft.p.kind === 'motor' ? box(group, .24, .10, .09, red, radius * .77, .89, radius * .37) : null;
+      if (pawl) ring(rotor, radius * .49, .045, metal, .79);
+      update = s => {
+        wind(s.p.kind === 'motor' ? (s.remaining / s.p.capacity - .5) * 4 : Math.max(-8, Math.min(8, s.angle)));
+        if (pawl) pawl.rotation.y = s.tripped ? -.48 : .63;
+      };
+    } else if (shaft.p.kind === 'flywheel') {
+      ring(rotor, radius * .75, .105, blue, .91);
+      for (let j = 0; j < 3; j++) {
+        const a = j * TAU / 3, dist = radius * .39;
+        box(rotor, radius * .70, .095, .10, blue, dist * Math.cos(a), .91, dist * Math.sin(a)).rotation.y = -a;
+        mesh(rotor, new T.SphereGeometry(radius * .13, 20, 12), metal,
+          radius * .75 * Math.cos(a), .955, radius * .75 * Math.sin(a));
+      }
+    } else if (shaft.p.kind === 'inerter') {
+      const nut = new T.Group();
+      nut.position.set(0, .98, .04);
+      nut.rotation.z = Math.PI / 2;
+      group.add(nut);
+      const screwFly = new T.Group();
+      nut.add(screwFly);
+      disk(screwFly, .47, .17, blue);
+      ring(screwFly, .44, .045, metal, .12);
+      box(screwFly, .61, .03, .085, brass, 0, .12);
+      const screw = new T.Group();
+      group.add(screw);
+      disk(screw, .105, 1.75, metal, 0, .98, .04).rotation.z = Math.PI / 2;
+      for (let j = -7; j <= 7; j++) {
+        const thread = ring(screw, .112, .014, brass, .98);
+        thread.position.set(j * .11, .98, .04);
+        thread.rotation.set(0, Math.PI / 2, 0);
+      }
+      update = s => {
+        // The cutaway uses a compressed axial scale so the nut stays in view.
+        screw.position.x = .62 * Math.tanh(s.p.radius * s.angle / .034);
+        screwFly.rotation.y = s.flywheelAngle;
+      };
+    }
+    return {rotor, update};
+  }
+
+  function track(radii, length) {
+    const [a, b] = radii;
+    const calculate = d => {
+      const angle = Math.acos((a - b) / d);
+      const tangent = Math.sqrt(d * d - (a - b) ** 2);
+      return {angle, tangent, size: 2 * (a * (Math.PI - angle) + tangent + b * angle)};
+    };
+    let lo = Math.abs(a - b) + 1e-7, hi = length / 2;
+    for (let j = 0; j < 45; j++) {
+      const mid = (lo + hi) / 2;
+      if (calculate(mid).size > length) hi = mid;
+      else lo = mid;
+    }
+    const d = (lo + hi) / 2;
+    const {angle, tangent} = calculate(d);
+    const centers = [-d / 2, d / 2];
+    const leftArc = a * (Math.PI - angle);
+    const rightArc = 2 * b * angle;
+    const point = (x, r, t) => [x + r * Math.cos(t), r * Math.sin(t)];
+    const mix = (p, q, u) => p.map((v, i) => v + (q[i] - v) * u);
+    function at(s) {
+      s = (s % length + length) % length;
+      if (s < leftArc) return point(centers[0], a, Math.PI + s / a);
+      s -= leftArc;
+      if (s < tangent) return mix(point(centers[0], a, -angle), point(centers[1], b, -angle), s / tangent);
+      s -= tangent;
+      if (s < rightArc) return point(centers[1], b, -angle + s / b);
+      s -= rightArc;
+      if (s < tangent) return mix(point(centers[1], b, angle), point(centers[0], a, angle), s / tangent);
+      return point(centers[0], a, angle + (s - tangent) / a);
+    }
+    return {centers, at};
+  }
+
+  function clearDrawing() {
+    if (!drawing) return;
+    scene.remove(drawing);
+    drawing.traverse(item => {
+      item.geometry?.dispose();
+      if (item.isInstancedMesh) item.dispose();
+    });
+  }
+
+  function reset() {
+    const [a, b] = rigs[$('rig').value];
+    const left = {kind: a};
+    const right = {kind: b};
+    if (a === 'capacitor') {
+      left.spring = PARTS.capacitor.spring / values.capScale;
+      left.angle = values.prewind * PARTS.capacitor.radius / left.spring;
+    }
+    if (a === 'motor') {
+      left.motorTorque = values.source * PARTS.motor.radius;
+      left.tripSpeed = values.trip;
+    }
+    if (b === 'flywheel') right.inertia = PARTS.flywheel.inertia * values.flyScale;
+    if (b === 'inerter') right.ratio = values.ratio;
+    const {stiffness, damping, preload} = values;
+    model = create({left, right, chain: {stiffness, damping, preload, polygonal: $('polygonal').checked}});
+    clearDrawing();
+    drawing = new T.Group();
+    scene.add(drawing);
+    const shafts = Object.values(model.state.shafts);
+    const radii = shafts.map(s => engagement(0, s.p.teeth, CHAIN.pitch).arm * SCALE);
+    path = track(radii, 2 * CHAIN.links * CHAIN.pitch * SCALE);
+    wheels = shafts.map((shaft, i) => sprocket(path.centers[i], radii[i], shaft));
+    const geometry = new T.BoxGeometry(1, .12, .22);
+    chainLinks = new T.InstancedMesh(geometry, chainMat, CHAIN.links * 2);
+    chainLinks.castShadow = chainLinks.receiveShadow = true;
+    chainLinks.frustumCulled = false;
+    chainLinks.instanceMatrix.setUsage(T.DynamicDrawUsage);
+    chainPins = new T.InstancedMesh(new T.CylinderGeometry(.05, .05, .15, 10), metal, CHAIN.links * 2);
+    chainPins.castShadow = true;
+    chainPins.frustumCulled = false;
+    chainPins.instanceMatrix.setUsage(T.DynamicDrawUsage);
+    drawing.add(chainLinks, chainPins);
+    $('leftTag').textContent = titles[a];
+    $('rightTag').textContent = titles[b];
+    for (const id of ['rewind', 'motorStatus']) $(id).hidden = a !== 'motor';
+    accumulator = 0;
+    data = [];
+    simulateVisuals();
+  }
+
+  function simulateVisuals() {
+    Object.values(model.state.shafts).forEach((s, i) => {
+      wheels[i].rotor.rotation.y = -s.angle;
+      wheels[i].update(s);
+    });
+    model.state.strands.forEach(({displacement, tension}, side) => {
+      for (let j = 0; j < CHAIN.links; j++) {
+        const i = side * CHAIN.links + j;
+        const [x, z] = path.at((i * CHAIN.pitch + displacement[j]) * SCALE);
+        const [nx, nz] = path.at(((i + 1) * CHAIN.pitch + displacement[j + 1]) * SCALE);
+        position.position.set(x, Y, z);
+        position.rotation.y = 0;
+        position.scale.set(1, 1, 1);
+        position.updateMatrix();
+        chainPins.setMatrixAt(i, position.matrix);
+        position.position.set((x + nx) / 2, Y, (z + nz) / 2);
+        position.rotation.y = -Math.atan2(nz - z, nx - x);
+        position.scale.set(.88 * Math.hypot(nx - x, nz - z), 1, 1);
+        position.updateMatrix();
+        chainLinks.setMatrixAt(i, position.matrix);
+        chainLinks.setColorAt(i, tint.copy(loose).lerp(taut, Math.min(1, tension[j] / .90)));
+      }
+    });
+    chainPins.instanceMatrix.needsUpdate = true;
+    chainLinks.instanceMatrix.needsUpdate = true;
+    chainLinks.instanceColor.needsUpdate = true;
+  }
+
+  function commands(t) {
+    const {left, right} = model.state.shafts;
+    switch (driveMode) {
+      case 'torque': return {left: {torque: values.torque}};
+      case 'ac': return {left: {torque: values.torque * Math.sin(TAU * values.hz * t)}};
+      case 'speed': {
+        const at = s => values.speed / (model.state.chain.polygonal ? CHAIN.pitch * s.p.teeth / TAU : s.p.radius);
+        return {left: {speed: at(left)}, right: {speed: at(right)}};
+      }
+      default: return {};
+    }
+  }
+
+  function plot(V, I) {
+    const canvas = $('plot'), ctx = canvas.getContext('2d');
+    const w = canvas.width, h = canvas.height;
+    const l = 35, r = w - 12, top = 13, bottom = h - 27;
+    let maxV = .03, maxI = .01;
+    for (const pt of data) {
+      maxV = Math.max(maxV, Math.abs(pt[0]) * 1.12);
+      maxI = Math.max(maxI, Math.abs(pt[1]) * 1.12);
+    }
+    const cx = (l + r) / 2, cy = (top + bottom) / 2;
+    ctx.clearRect(0, 0, w, h);
+    ctx.strokeStyle = '#32473b';
+    ctx.beginPath();
+    ctx.moveTo(l, cy); ctx.lineTo(r, cy);
+    ctx.moveTo(cx, top); ctx.lineTo(cx, bottom);
+    ctx.stroke();
+    ctx.fillStyle = '#a9b6ad';
+    ctx.font = '10px ui-monospace,monospace';
+    ctx.fillText('N', l + 4, top + 7);
+    ctx.fillText(maxV.toFixed(2), 4, top + 7);
+    ctx.fillText((-maxV).toFixed(2), 4, bottom);
+    ctx.fillText((-maxI).toFixed(2), l, h - 8);
+    ctx.fillText(maxI.toFixed(2) + ' m/s', r - 53, h - 8);
+    const px = i => cx + i / maxI * (r - cx);
+    const py = v => cy - v / maxV * (cy - top);
+    ctx.strokeStyle = '#9bdfab';
+    ctx.lineWidth = 1.3;
+    ctx.beginPath();
+    data.forEach(([v, i], j) => j ? ctx.lineTo(px(i), py(v)) : ctx.moveTo(px(i), py(v)));
+    ctx.stroke();
+    ctx.fillStyle = '#ffc37b';
+    ctx.beginPath(); ctx.arc(px(I), py(V), 2.6, 0, TAU); ctx.fill();
+  }
+
+  function readouts() {
+    const p = model.ports.left;
+    const V = p.chainTorque / p.radius;
+    $('volts').textContent = V.toFixed(3) + ' N';
+    $('amps').textContent = p.current.toFixed(3) + ' m/s';
+    $('feed').textContent = p.feedSpeed.toFixed(3) + ' m/s';
+    const s = model.state.shafts.left;
+    if (s.p.kind === 'motor') {
+      $('motorStatus').textContent = (s.tripped ? 'Breaker tripped' : 'Breaker reset')
+        + ' · ' + Math.round(100 * s.remaining / s.p.capacity) + '% wound';
+    }
+    plot(V, p.current);
+  }
+
+  function slider(parent, key, text, min, max, step, units, rebuild) {
+    const label = document.createElement('label');
+    label.className = 'slider';
+    const row = document.createElement('span'), output = document.createElement('output');
+    const input = document.createElement('input');
+    input.type = 'range';
+    input.min = min;
+    input.max = max;
+    input.step = step;
+    input.value = values[key];
+    input.setAttribute('aria-label', text);
+    const show = () => { output.textContent = values[key] + (units ? ' ' + units : ''); };
+    input.oninput = () => { values[key] = Number(input.value); show(); if (rebuild) reset(); };
+    row.append(text, output);
+    label.append(row, input);
+    parent.append(label);
+    show();
+  }
+
+  function parameterControls() {
+    const box = $('partControls');
+    box.replaceChildren();
+    const [left, right] = rigs[$('rig').value];
+    if (left === 'capacitor') {
+      slider(box, 'prewind', 'Initial spring effort', 0, .9, .025, 'N', true);
+      slider(box, 'capScale', 'Spring compliance', .4, 1.5, .05, '×', true);
+    }
+    if (left === 'motor') {
+      slider(box, 'source', 'Motor effort', .1, .9, .025, 'N', true);
+      slider(box, 'trip', 'Breaker speed', 20, 200, 1, 'rad/s', true);
+    }
+    if (right === 'flywheel') slider(box, 'flyScale', 'Flywheel inertia', .35, 1.8, .05, '×', true);
+    if (right === 'inerter') slider(box, 'ratio', 'Inerter gear ratio', .35, 1.5, .05, '×', true);
+  }
+  let driveMode = 'free';
+  function driveControls() {
+    const box = $('driveControls');
+    box.replaceChildren();
+    driveMode = $('drive').value;
+    const mode = driveMode;
+    if (mode === 'torque' || mode === 'ac') slider(box, 'torque', 'Applied torque', -.008, .008, .00025, 'N·m', false);
+    if (mode === 'ac') slider(box, 'hz', 'Drive frequency', .1, 6, .05, 'Hz', false);
+    if (mode === 'speed') slider(box, 'speed', 'Mean chain speed', -.28, .28, .005, 'm/s', false);
+  }
+
+  slider($('chainControls'), 'stiffness', 'Link stiffness', 500, 5000, 100, 'N/m', true);
+  slider($('chainControls'), 'damping', 'Link damping', 0, .19, .01, 'N·s/m', true);
+  slider($('chainControls'), 'preload', 'Chain preload', 0, .9, .025, 'N', true);
+  $('rig').onchange = () => {
+    $('drive').value = $('rig').value === 'chain' ? 'speed' : 'free';
+    parameterControls();
+    driveControls();
+    reset();
+  };
+  $('drive').onchange = driveControls;
+  $('polygonal').onchange = reset;
+  $('pause').onclick = () => {
+    paused = !paused;
+    $('pause').textContent = paused ? 'Resume' : 'Pause';
+    $('pause').setAttribute('aria-pressed', String(paused));
+  };
+  $('reset').onclick = reset;
+  $('rewind').onclick = () => model.rewind();
+  const resize = () => {
+    const host = $('view');
+    const w = host.clientWidth, h = host.clientHeight;
+    if (!w || !h) return;
+    const aspect = w / h;
+    const viewWidth = Math.max(12.8, 7.0 * aspect);
+    Object.assign(camera, {left: -viewWidth / 2, right: viewWidth / 2,
+      top: viewWidth / (2 * aspect), bottom: -viewWidth / (2 * aspect)});
+    camera.updateProjectionMatrix();
+    renderer.setSize(w, h);
+    const canvas = $('plot');
+    canvas.width = canvas.clientWidth;
+    canvas.height = canvas.clientHeight;
+  };
+  new ResizeObserver(resize).observe($('view'));
+  parameterControls();
+  driveControls();
+  reset();
+  resize();
+
+  function frame(now) {
+    if (!paused && last) {
+      accumulator += Math.min((now - last) / 1000, .05);
+      while (accumulator >= FRAME) {
+        const p = model.step(FRAME, commands).left;
+        data.push([p.chainTorque / p.radius, p.current]);
+        if (data.length > 720) data.shift();
+        accumulator -= FRAME;
+      }
+      simulateVisuals();
+    }
+    last = now;
+    readouts();
+    orbit.update();
+    renderer.render(scene, camera);
+    requestAnimationFrame(nextFrame);
+  }
+  function nextFrame(now) {
+    try { frame(now); } catch (error) { reportError(error); }
+  }
+  requestAnimationFrame(nextFrame);
+}
+run().catch(reportError);
+</script>
+</body>
+</html>

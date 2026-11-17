@@ -1,0 +1,1347 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<meta name="color-scheme" content="dark">
+<title>Spintronics · Circuit Bench</title>
+<script type="importmap">
+{
+  "imports": {
+    "three": "https://cdn.jsdelivr.net/npm/three@0.160.0/build/three.module.js",
+    "three/addons/": "https://cdn.jsdelivr.net/npm/three@0.160.0/examples/jsm/"
+  }
+}
+</script>
+<style>
+:root{font:14px system-ui,sans-serif;color:#e8ece5;background:#111916;--muted:#a6b2a8;--line:#37433a;--panel:#1a241e;--green:#9bdfab;--amber:#ffc37b}
+*{box-sizing:border-box}
+body{margin:0}
+button,select,input{font:inherit}
+button,select{border:1px solid #4a5950;border-radius:6px;background:#222f28;color:#e8ece5;padding:8px 11px}
+button{cursor:pointer}
+button:hover,select:hover{border-color:var(--green)}
+button:focus-visible,select:focus-visible,input:focus-visible{outline:2px solid var(--green);outline-offset:3px}
+h1,h2,h3,p,figure{margin:0}
+.shell{max-width:1530px;margin:auto;padding:22px clamp(15px,3vw,45px)}
+header{display:flex;justify-content:space-between;align-items:end;gap:16px;flex-wrap:wrap;margin-bottom:20px}
+h1{font-size:clamp(28px,3.5vw,46px);font-weight:630;letter-spacing:-.055em;line-height:1}
+.kicker,.field-title{font:600 10px ui-monospace,monospace;letter-spacing:.15em;text-transform:uppercase;color:var(--muted)}
+.kicker{margin-bottom:8px;color:var(--green)}
+.toolbar{display:flex;gap:8px;align-items:end;flex-wrap:wrap}
+.toolbar label,.scope-controls label{display:grid;gap:5px}
+#pause{min-width:75px;background:#b0e7ba;color:#14291c;border-color:#b0e7ba;font-weight:700}
+.bench{--sidebar-width:clamp(295px,30%,345px);position:relative;min-height:610px;border:1px solid var(--line);border-radius:13px;overflow:hidden;background:#16211b}
+.viewport{position:relative;min-width:0;min-height:610px;margin-right:var(--sidebar-width);isolation:isolate}
+#view{position:absolute;inset:0}
+#view canvas{display:block;width:100%;height:100%;touch-action:none}
+.scene-title{position:absolute;z-index:1;top:20px;left:21px;right:21px;display:flex;justify-content:space-between;gap:12px;pointer-events:none}
+.scene-title h2{font-size:19px;font-weight:650;letter-spacing:-.02em}
+.scene-title p{max-width:39ch;margin-top:4px;color:#c2cec2;font-size:12px;line-height:1.4}
+#clock{white-space:nowrap;color:var(--green);font:12px ui-monospace,monospace}
+.scene-footer{position:absolute;z-index:1;bottom:16px;left:21px;right:21px;display:flex;justify-content:space-between;gap:12px;align-items:end;pointer-events:none;color:#b5c1b6;font-size:11px}
+.scene-footer p{max-width:34ch}
+#interaction{text-align:right;font:11px ui-monospace,monospace;color:var(--amber)}
+#labels{position:absolute;inset:0;pointer-events:none;overflow:hidden}
+.part-tag{position:absolute;transform:translate(-50%,-50%);border:1px solid #718277;background:#15211be8;border-radius:4px;color:#f2f3e9;padding:3px 5px;font:600 10px ui-monospace,monospace;white-space:nowrap}
+.part-tag b{color:var(--green);font-weight:600}
+.part-tag small{font-size:8px;color:var(--amber)}
+.sidebar{position:absolute;inset:0 0 0 auto;width:var(--sidebar-width);display:grid;grid-template-rows:auto minmax(0,1fr);min-width:0;min-height:0;border-left:1px solid var(--line);background:var(--panel)}
+.scope,.parameters{padding:16px}
+.scope{position:relative;border-bottom:1px solid var(--line)}
+.scope h2,.parameters h2{font-size:15px;font-weight:650}
+.scope-controls{display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-top:12px}
+.scope-controls select{min-width:0;width:100%;padding:5px 4px;font-size:11px}
+.trace-v{color:var(--amber)}
+.trace-i{color:var(--green)}
+#scope{display:block;width:100%;height:148px;margin:10px 0 8px;background:#121c17;border:1px solid #33443a;border-radius:6px}
+.readings{display:grid;grid-template-columns:1fr 1fr;gap:8px;font:600 15px ui-monospace,monospace}
+.parameters{position:relative;min-height:0;display:grid;grid-template-rows:auto minmax(0,1fr);gap:9px}
+#parameters{overflow:auto;max-height:315px;scrollbar-color:#607469 transparent;padding-right:5px}
+.part-setting{padding:9px 0;border-bottom:1px solid #334038}
+.part-setting:first-child{padding-top:0}
+.part-setting:last-child{border:0}
+.part-setting h3{display:flex;align-items:baseline;gap:8px;font-size:12px;font-weight:650;margin-bottom:4px}
+.part-setting h3 b{color:var(--green);font:600 11px ui-monospace,monospace}
+.part-setting h3 small{color:var(--amber);font-size:10px;font-weight:500}
+.param{display:grid;grid-template-columns:1fr auto;gap:2px 8px;align-items:center;margin-top:6px;font-size:11px;color:#c5cec5}
+.param output{font:11px ui-monospace,monospace;color:#e8ece5}
+.param input{width:100%;margin:0;grid-column:1/-1;accent-color:var(--green)}
+.part-action{padding:4px 8px;font-size:11px}
+#status{white-space:pre-wrap;margin:15px 0;padding:12px;background:#26312a;border-radius:6px;color:var(--amber)}
+[hidden]{display:none!important}
+@media(max-width:790px){.viewport{min-height:clamp(375px,70vw,520px);margin-right:0}.sidebar{position:static;width:auto;border-left:0;border-top:1px solid var(--line);grid-template-columns:1fr 1fr;grid-template-rows:auto}.scope{border-bottom:0;border-right:1px solid var(--line)}}
+@media(max-width:520px){.sidebar{grid-template-columns:1fr}.scope{border-right:0;border-bottom:1px solid var(--line)}.scene-title,.scene-footer{left:10px;right:10px}.scene-title p{max-width:30ch}.part-tag{font-size:9px}.part-tag small{display:block;text-align:center}}
+</style>
+</head>
+<body>
+<main class="shell">
+  <header>
+    <div>
+      <p class="kicker">Spintronics</p>
+      <h1>Circuit Bench</h1>
+    </div>
+    <div class="toolbar" id="toolbar">
+      <label><span class="field-title">Circuit</span><select id="preset"></select></label>
+      <button id="reset" type="button" title="Restart with the current parameter values">Reset</button>
+      <button id="pause" type="button" aria-pressed="false">Pause</button>
+    </div>
+  </header>
+  <section class="bench" id="bench" aria-label="Simulator">
+    <div class="viewport">
+      <div id="view" aria-label="Interactive three-dimensional circuit"></div>
+      <div id="labels" aria-hidden="true"></div>
+      <div class="scene-title">
+        <div><h2 id="circuit-title"></h2><p id="description"></p></div>
+        <output id="clock" aria-label="Simulation time"></output>
+      </div>
+      <div class="scene-footer">
+        <p>Drag a sprocket to apply torque. Drag the board to orbit. Scroll to zoom.</p>
+        <output id="interaction" aria-label="Applied voltage"></output>
+      </div>
+    </div>
+    <aside class="sidebar">
+      <section class="scope" aria-labelledby="scope-title">
+        <h2 id="scope-title">Oscilloscope</h2>
+        <div class="scope-controls">
+          <label><span class="field-title trace-v">Voltage · V</span><select id="voltage"></select></label>
+          <label><span class="field-title trace-i">Current · A</span><select id="current"></select></label>
+        </div>
+        <canvas id="scope" aria-label="Voltage and current over the last six simulated seconds"></canvas>
+        <div class="readings">
+          <output class="trace-v" id="volts" aria-label="Live voltage"></output>
+          <output class="trace-i" id="amps" aria-label="Live current"></output>
+        </div>
+      </section>
+      <section class="parameters" aria-labelledby="parameter-title">
+        <h2 id="parameter-title">Parameters</h2>
+        <div id="parameters"></div>
+      </section>
+    </aside>
+  </section>
+  <pre id="status" role="status" hidden></pre>
+</main>
+
+<script type="module" id="solver">
+const TAU = 2 * Math.PI;
+const STEP = 1 / 480;
+const GATE_MIN = TAU * .018;
+const GATE_TRAVEL = TAU * .125 - GATE_MIN;
+const OPEN_R = 1e6;
+const clamp = (x, low, high) => Math.min(high, Math.max(low, x));
+
+const params = {
+  dc: [['value','Torque / voltage','V',.25,8,.05], ['trip','Breaker current','A',.25,8,.05]],
+  ac: [['value','Peak amplitude','V',.05,8,.01], ['hz','Crank frequency','Hz',.15,8,.05], ['bias','DC offset','V',-3,4,.05]],
+  r: [['value','Resistance','Ω',.5,200,.5]],
+  c: [['value','Capacitance','F',.025,2,.005]],
+  l: [['value','Inductance','H',.05,4,.01]],
+  d: [['value','Forward resistance','Ω',.05,5,.05]],
+  gate: [['value','Gate compliance','F',.002,.065,.001], ['span','Full-travel voltage','V',.3,6,.05]],
+  channel: [['value','Brake scale','Ω',.01,.5,.01]],
+  switch: [['value','Closed resistance','Ω',.002,.252,.002]]
+};
+
+const names = {
+  dc:'Spring motor', ac:'AC crank', r:'Resistor', c:'Capacitor', l:'Flywheel', d:'Ratchet',
+  gate:'Gate', channel:'Transistor', switch:'Switch', meter:'Ammeter', junction:'Differential'
+};
+
+const branch = (id, type, a, b, value, extra = {}) => ({id, type, a, b, value, ...extra});
+const at = (id, x, z, sign = 1) => ({id, x, z, sign});
+const dc = (a, value, trip = 4) => branch('B1','dc',a,'0',value,{trip});
+const ac = (a, b, value, hz, bias = 0) => branch('AC1','ac',a,b,value,{hz,bias});
+const meter = (a, b) => branch('A1','meter',a,b,0);
+
+const presets = {
+  rc: {
+    name:'RC charging', description:'The capacitor spring winds through a resistor. Use the switch to cut the current.',
+    parts:[dc('supply',4),branch('S1','switch','supply','a',.002),branch('R1','r','a','b',8),
+      branch('C1','c','b','c',.125),meter('c','0')],
+    positions:[at('B1',-3.4,.1,-1),at('S1',-1.65,-1.9),at('R1',1.7,-1.9),at('C1',3.35,.4),at('A1',.15,1.9)],
+    loops:[['R1','B1','S1','R1','C1','A1']], probes:['C1','A1']
+  },
+  rl: {
+    name:'RL step response', description:'The flywheel resists changes in chain speed after the switch closes.',
+    parts:[dc('supply',4),branch('S1','switch','supply','a',.002),branch('R1','r','a','b',4),
+      branch('L1','l','b','c',1.2),meter('c','0')],
+    positions:[at('B1',-3.4,.1,-1),at('S1',-1.65,-1.9),at('R1',1.7,-1.9),at('L1',3.35,.4),at('A1',.15,1.9)],
+    loops:[['R1','B1','S1','R1','L1','A1']], probes:['L1','A1']
+  },
+  lc: {
+    name:'LC oscillator', description:'A prewound spring and a flywheel exchange energy in a closed loop.',
+    parts:[branch('L1','l','b','a',.5),branch('C1','c','b','0',.25,{initial:3}),meter('a','0')],
+    positions:[at('L1',-2.65,-.45),at('A1',2.55,-.45),at('C1',0,2.2,-1)],
+    loops:[['L1','L1','A1','C1']], probes:['C1','A1']
+  },
+  bridge: {
+    name:'Bridge rectifier', description:'Four ratchets route both halves of the AC cycle into the smoothing spring.',
+    method:1,
+    parts:[ac('a','b',5,1.5),branch('D1','d','a','out',.35),branch('D2','d','b','out',.35),
+      branch('D3','d','0','a',.35),branch('D4','d','0','b',.35),branch('C1','c','out','0',.18),
+      branch('R1','r','out','0',18),branch('refA','r','a','0',1e7,{hidden:true}),
+      branch('refB','r','b','0',1e7,{hidden:true})],
+    positions:[at('AC1',-4.15,.05,-1),at('D1',-1.35,-2.15),at('D2',1.5,-2.15),
+      at('D3',-1.35,1.9),at('D4',1.5,1.9),at('C1',4.05,-1.75),at('R1',4.05,1.9)],
+    idlers:{AC1:[-4.15,-1.8],D1:[-.05,-2.15],D2:[2.8,-2.15],D3:[-.05,1.9],
+      D4:[2.8,1.9],C1:[4.05,.05],R1:[4.05,3.25]},
+    probes:['C1','R1']
+  },
+  ring: {
+    name:'Three-transistor ring', description:'Each brake inverts the previous stage. The gate springs delay the feedback.',
+    method:1,
+    parts:[dc('rail',3.6),...Array.from({length:3},(_,i)=>{
+      const n=i+1, previous=i || 3;
+      return [
+        branch('R'+n,'r','rail','x'+n,32),
+        branch('Q'+n,'channel','x'+n,'0',.10,{gate:'G'+n}),
+        branch('G'+n,'gate','x'+previous,'0',.018,{span:2.5,initial:[.25,1,1.75][i]})
+      ];
+    }).flat()],
+    positions:[at('B1',0,-3.1,-1),...[-3.6,0,3.6].flatMap((x,i)=>[
+      at('R'+(i+1),x,-.85),at('Q'+(i+1),x,1.65),at('G'+(i+1),x+.92,1.65)
+    ])],
+    idlers:{B1:[-1.8,-3.1],R1:[-2.1,-.85],R2:[1.5,-.85],R3:[5.1,-.85],
+      Q1:[-3.6,3.05],Q2:[0,3.05],Q3:[3.6,3.05],
+      G1:[-1.2,1.65],G2:[2.4,1.65],G3:[6,1.65]},
+    probes:['Q1','G2']
+  },
+  parallel: {
+    name:'Parallel resistors', description:'The differential splits main-chain current between the two load paths.',
+    parts:[dc('feed',4),meter('feed','a'),branch('R1','r','a','0',8),branch('R2','r','a','0',16)],
+    positions:[at('B1',-3.5,-1.2,-1),at('A1',-3.65,1.6),at('J1',-.55,.05),
+      at('R1',2.65,-1.9),at('R2',2.65,2)],
+    loops:[['A1','B1','J0','A1'],['R1','J1a','R1'],['R2','J1b','R2']],
+    probes:['R1','A1']
+  },
+  amp: {
+    name:'Transistor amplifier', description:'A biased AC signal moves the gate. The pull-up and brake produce an inverted output.',
+    method:1,
+    parts:[dc('rail',3.6),ac('in','0',.12,1,.95),branch('RG','r','in','g',2),
+      branch('R1','r','rail','out',32),branch('Q1','channel','out','0',.10,{gate:'G1'}),
+      branch('G1','gate','g','0',.012,{span:2.5,initial:.95})],
+    positions:[at('AC1',-3.6,1.85,-1),at('RG',-3.6,-.2),at('G1',1.75,1.03),
+      at('Q1',2.67,1.03),at('B1',-3.6,-2.5,-1),at('R1',2.67,-2.15)],
+    idlers:{AC1:[-1.9,1.85],RG:[-1.9,-.2],G1:[.05,1.03],Q1:[4.4,1.03],
+      B1:[-1.9,-2.5],R1:[4.4,-2.15]},
+    probes:['Q1','G1']
+  }
+};
+
+function solveLinear(matrix, rhs) {
+  const n = rhs.length;
+  for (let k=0; k<n; k++) {
+    let pivot = k;
+    for (let i=k+1; i<n; i++) {
+      if (Math.abs(matrix[i][k]) > Math.abs(matrix[pivot][k])) pivot = i;
+    }
+    if (Math.abs(matrix[pivot][k]) < 1e-12) throw Error('Singular circuit matrix');
+    [matrix[k],matrix[pivot]] = [matrix[pivot],matrix[k]];
+    [rhs[k],rhs[pivot]] = [rhs[pivot],rhs[k]];
+    for (let i=k+1; i<n; i++) {
+      const f = matrix[i][k] / matrix[k][k];
+      if (!f) continue;
+      for (let j=k+1; j<n; j++) matrix[i][j] -= f * matrix[k][j];
+      rhs[i] -= f * rhs[k];
+    }
+  }
+  for (let i=n-1; i>=0; i--) {
+    for (let j=i+1; j<n; j++) rhs[i] -= matrix[i][j] * rhs[j];
+    rhs[i] /= matrix[i][i];
+  }
+  if (!rhs.every(Number.isFinite)) throw Error('Non-finite circuit solution');
+  return rhs;
+}
+
+class Circuit {
+  constructor(preset) {
+    this.preset = preset;
+    this.nodes = new Map([['0',-1]]);
+    for (const {a,b} of preset.parts) {
+      for (const node of [a,b]) if (!this.nodes.has(node)) this.nodes.set(node,this.nodes.size-1);
+    }
+    this.size = this.nodes.size-1;
+    this.parts = preset.parts.map(p=>{
+      const initial=p.type==='gate' ? clamp(p.initial ?? 0,0,p.span) : p.initial ?? 0;
+      const v=p.type==='dc' ? p.value : p.type==='ac' ? p.bias : initial;
+      return {
+        ...p, ai:this.nodes.get(p.a), bi:this.nodes.get(p.b),
+        row:['dc','ac','meter'].includes(p.type) ? this.size++ : -1,
+        i:0, v, q:initial*p.value, travel:0, effort:0, closed:true, tripped:false, phase:0
+      };
+    });
+    this.byId = Object.fromEntries(this.parts.map(p=>[p.id,p]));
+    this.constraints = this.parts.filter(p=>p.type==='d' || p.type==='gate');
+    this.states = [{}];
+    for (const p of this.constraints) {
+      const modes = p.type==='d' ? [0,1] : [0,-1,1];
+      this.states = this.states.flatMap(state=>modes.map(mode=>({...state,[p.id]:mode})));
+    }
+    this.active = this.states[0];
+    this.time = 0;
+    this.discontinuity = true;
+    this.drive = null;
+  }
+
+  gateFraction(p) {
+    return clamp(p.q/(p.value*p.span),0,1);
+  }
+
+  resistance(p) {
+    if (p.type==='switch') return p.closed ? p.value : OPEN_R;
+    if (p.type==='channel') {
+      const r = this.gateFraction(this.byId[p.gate]);
+      return p.value * Math.max(.5,100 ** (2 * (1-r)) - 1);
+    }
+    return p.value;
+  }
+
+  companion(p,h,theta,mode) {
+    const push = this.drive?.id===p.id ? this.drive.volts : 0;
+    const source = (emf,r=0) => ({emf:emf-push,r,push});
+    const passive = (g,j=0) => ({g,j:j+g*push,push});
+    switch (p.type) {
+      case 'dc': return p.tripped ? source(0,OPEN_R) : source(p.value);
+      case 'ac': return source(p.bias+p.value*Math.sin(p.phase+TAU*p.hz*h));
+      case 'meter': return source(0);
+      case 'c': {
+        const g=p.value/(h*theta);
+        return passive(g,-p.q/(h*theta)-(1-theta)*p.i/theta);
+      }
+      case 'l': {
+        const g=h*theta/p.value;
+        return passive(g,p.i+h*(1-theta)*p.effort/p.value);
+      }
+      case 'd': return passive(mode ? 1/p.value : 0);
+      case 'gate': {
+        if (!mode) return passive(p.value/h,-p.q/h);
+        return passive(0,((mode>0 ? p.value*p.span : 0)-p.q)/h);
+      }
+      case 'r': case 'switch': case 'channel': return passive(1/this.resistance(p));
+      default: throw Error('Unsupported branch '+p.type);
+    }
+  }
+
+  candidate(h,theta,state) {
+    const matrix = Array.from({length:this.size},()=>new Float64Array(this.size));
+    const rhs = new Float64Array(this.size);
+    const companions = this.parts.map(p=>this.companion(p,h,theta,state[p.id]));
+    this.parts.forEach(({ai:a,bi:b,row},i)=>{
+      const {g,j,emf,r} = companions[i];
+      if (row>=0) {
+        if (a>=0) matrix[row][a] = matrix[a][row] = 1;
+        if (b>=0) matrix[row][b] = matrix[b][row] = -1;
+        matrix[row][row] = -r;
+        rhs[row] = emf;
+      } else {
+        if (a>=0) { matrix[a][a]+=g; rhs[a]-=j; }
+        if (b>=0) { matrix[b][b]+=g; rhs[b]+=j; }
+        if (a>=0 && b>=0) { matrix[a][b]-=g; matrix[b][a]-=g; }
+      }
+    });
+    const x = solveLinear(matrix,rhs);
+    return this.parts.map(({ai,bi,row},i)=>{
+      const v = (ai<0 ? 0 : x[ai]) - (bi<0 ? 0 : x[bi]);
+      const {g,j,push} = companions[i];
+      return {v, i:row<0 ? g*v+j : x[row], effort:v+push};
+    });
+  }
+
+  feasible(candidate,state) {
+    return this.parts.every((p,i)=>{
+      const {effort:e} = candidate[i];
+      const mode = state[p.id];
+      const tolerance = 1e-10;
+      if (p.type==='d') return mode ? e>=0 : e<=tolerance;
+      if (p.type!=='gate') return true;
+      if (mode===-1) return e<=tolerance;
+      if (mode===1) return e>=p.span-tolerance;
+      return e>=-tolerance && e<=p.span+tolerance;
+    });
+  }
+
+  step(h=STEP) {
+    const theta = this.discontinuity ? 1 : (this.preset.method ?? .5);
+    const t = this.time+h;
+    let result;
+    for (const state of [this.active,...this.states.filter(s=>s!==this.active)]) {
+      const candidate = this.candidate(h,theta,state);
+      if (!this.feasible(candidate,state)) continue;
+      this.active = state;
+      result = candidate;
+      break;
+    }
+    if (!result) throw Error('No consistent diode or gate state at t='+t);
+    this.discontinuity = false;
+    this.parts.forEach((p,index)=>{
+      const {v,i,effort} = result[index];
+      const advance = h*((1-theta)*p.i+theta*i);
+      if (p.type==='c') p.q += advance;
+      if (p.type==='gate') p.q = clamp(p.q+h*i,0,p.value*p.span);
+      if (p.type==='ac') p.phase = (p.phase+TAU*p.hz*h)%TAU;
+      p.travel += advance;
+      Object.assign(p,{i,v,effort});
+      if (p.type==='dc' && !p.tripped && Math.abs(i)>p.trip) {
+        p.tripped = true;
+        this.discontinuity = true;
+      }
+    });
+    this.time = t;
+  }
+}
+
+const cross = (t,y,previous,target) => t-STEP*(y-target)/(y-previous);
+const fmt = (v,n=4) => Number(v).toFixed(n);
+
+function runTests(log=console.log) {
+  const checks = {
+    rc(s, samples) {
+      const {B1,R1,C1,S1}=s.byId;
+      const tau=(R1.value+s.resistance(S1))*C1.value;
+      const threshold=B1.value*(1-Math.exp(-1));
+      const k=samples.findIndex(row=>row.C1.v>=threshold);
+      const measured=k>0 ? cross(samples[k].t,samples[k].C1.v,samples[k-1].C1.v,threshold) : NaN;
+      return [Math.abs(measured/tau-1)<=.02,'τ '+fmt(measured)+' s, analytic '+fmt(tau)+' s'];
+    },
+    rl(s, samples) {
+      const {B1,R1,L1,S1}=s.byId;
+      const r=R1.value+s.resistance(S1), tau=L1.value/r;
+      const threshold=B1.value/r*(1-Math.exp(-1));
+      const k=samples.findIndex(row=>row.L1.i>=threshold);
+      const measured=k>0 ? cross(samples[k].t,samples[k].L1.i,samples[k-1].L1.i,threshold) : NaN;
+      return [Math.abs(measured/tau-1)<=.02,'τ '+fmt(measured)+' s, analytic '+fmt(tau)+' s'];
+    },
+    lc(s,samples) {
+      const expected=TAU*Math.sqrt(s.byId.L1.value*s.byId.C1.value);
+      const zeroes=[];
+      for (let i=1;i<samples.length;i++) {
+        const a=samples[i-1].C1.v, b=samples[i].C1.v;
+        if (a<=0 && b>0) zeroes.push(cross(samples[i].t,b,a,0));
+      }
+      const period=zeroes[1]-zeroes[0];
+      return [Math.abs(period/expected-1)<=.02,'T '+fmt(period)+' s, analytic '+fmt(expected)+' s'];
+    },
+    bridge(s,samples) {
+      const minimum=Math.min(0,...samples.map(row=>row.C1.v));
+      const peak=Math.max(...samples.map(row=>row.C1.v));
+      const reverse=Math.min(...samples.flatMap(row=>['D1','D2','D3','D4'].map(id=>row[id].i)));
+      const {AC1,R1,D1,D4}=s.byId;
+      const limit=AC1.value*R1.value/(R1.value+D1.value+D4.value);
+      return [minimum>=0 && peak>AC1.value/2 && peak<=limit && reverse>=0,
+        'output '+fmt(minimum)+'…'+fmt(peak)+' V, analytic ceiling '+fmt(limit)+' V, minimum diode current '+reverse+' A'];
+    },
+    ring(s,samples) {
+      const late=samples.filter(row=>row.t>6);
+      const ranges=['Q1','Q2','Q3'].map(id=>{
+        const v=late.map(row=>row[id].v);
+        return Math.max(...v)-Math.min(...v);
+      });
+      const spikes=late.slice(1).filter((row,i)=>late[i].Q1.v<1.2 && row.Q1.v>=1.2).length;
+      const {B1,R1,Q1,G1}=s.byId;
+      const brake=v=>Q1.value*Math.max(.5,100**(2*(1-v/G1.span))-1);
+      let lo=0,hi=B1.value;
+      for (let k=0;k<48;k++) {
+        const v=(lo+hi)/2, r=brake(v);
+        if (B1.value*r/(r+R1.value)>v) lo=v; else hi=v;
+      }
+      const v=(lo+hi)/2,r=brake(v);
+      const slope=-(r+Q1.value)*2*Math.log(100)/G1.span;
+      const growth=(-(1/R1.value+1/r)-.5*v*slope/r**2)/G1.value;
+      const small=new Circuit(s.preset);
+      const differential=()=>{
+        const [a,b,c]=['G1','G2','G3'].map(id=>small.byId[id].q/G1.value);
+        return Math.hypot(a-(b+c)/2,(b-c)*Math.sqrt(3)/2);
+      };
+      ['G1','G2','G3'].forEach((id,i)=>small.byId[id].q=G1.value*(v+(i===0 ? 1e-5 : 0)));
+      const amplitude=differential();
+      for (let k=0;k<240;k++) small.step();
+      const measured=Math.log(differential()/amplitude)/small.time;
+      return [ranges.every(v=>v>1) && spikes>=2 && growth>0 && Math.abs(measured/growth-1)<.12,
+        'late swings '+ranges.map(v=>fmt(v,2)).join(' / ')+' V, '+spikes+' rising crossings, growth '+
+          fmt(measured,2)+' / analytic '+fmt(growth,2)+' s⁻¹'];
+    },
+    parallel(s) {
+      const {B1,R1,R2,A1}=s.byId;
+      const expected=B1.value*(1/R1.value+1/R2.value);
+      return [Math.abs(A1.i-expected)<1e-9 && Math.abs(R1.i+R2.i-A1.i)<1e-9,
+        fmt(A1.i)+' A total, analytic '+fmt(expected)+' A'];
+    },
+    amp(s,samples) {
+      const late=samples.filter(row=>row.t>4);
+      const range=id=>{
+        const v=late.map(row=>row[id].v);
+        return Math.max(...v)-Math.min(...v);
+      };
+      const gain=range('Q1')/range('G1');
+      const {B1,R1,Q1,G1,AC1}=s.byId;
+      const load=R1.value, rail=B1.value, scale=Q1.value;
+      const exp=100**(2*(1-AC1.bias/G1.span)), r=scale*(exp-1);
+      const expected=rail*load*scale*exp*(2*Math.log(100)/G1.span)/(load+r)**2;
+      const cov=late.reduce((sum,{G1,Q1})=>sum+(G1.v-AC1.bias)*(Q1.v-rail*r/(load+r)),0);
+      return [cov<0 && Math.abs(gain/expected-1)<.08,
+        'inverted gain '+fmt(gain,3)+', small-signal analytic '+fmt(expected,3)];
+    }
+  };
+
+  return Object.entries(presets).map(([id,preset])=>{
+    const duration=id==='ring' ? 12 : 6;
+    let pass=false, detail;
+    try {
+      const circuit=new Circuit(preset), samples=[];
+      for (let k=0;k<duration/STEP;k++) {
+        circuit.step();
+        samples.push({t:circuit.time,...Object.fromEntries(circuit.parts.map(p=>[p.id,{i:p.i,v:p.v}]))});
+      }
+      [pass,detail]=checks[id](circuit,samples);
+    } catch (error) {
+      detail=error.stack;
+    }
+    log((pass ? 'PASS' : 'FAIL')+' '+id+' ('+duration+' s) · '+detail);
+    return {id,pass,detail};
+  });
+}
+
+const api = {Circuit,presets,params,names,STEP,TAU,GATE_MIN,GATE_TRAVEL,clamp,runTests};
+export {Circuit,presets,STEP,runTests};
+if (typeof document!=='undefined') globalThis.Spintronics=api;
+</script>
+
+<script type="module" id="app">
+const $ = id => document.getElementById(id);
+const {Circuit,presets,params,names,STEP,TAU,GATE_MIN,GATE_TRAVEL,clamp,runTests} = globalThis.Spintronics;
+const testMode = new URLSearchParams(location.search).get('test')==='1';
+
+if (testMode) {
+  $('bench').hidden = $('toolbar').hidden = true;
+  const lines = [];
+  const result = runTests(line=>{ lines.push(line); console.log(line); });
+  $('status').hidden = false;
+  $('status').textContent = lines.join('\n');
+  document.documentElement.dataset.test = result.every(test=>test.pass) ? 'pass' : 'fail';
+} else {
+  boot().catch(showError);
+}
+
+function showError(error) {
+  $('status').hidden = false;
+  $('status').textContent = 'Simulator error: '+error.message;
+  console.error(error);
+}
+
+async function boot() {
+  const [T,{OrbitControls}] = await Promise.all([
+    import('three'),import('three/addons/controls/OrbitControls.js')
+  ]);
+  const canvasHost = $('view');
+  const renderer = new T.WebGLRenderer({antialias:true});
+  renderer.setPixelRatio(Math.min(devicePixelRatio,2));
+  renderer.shadowMap.enabled = true;
+  renderer.shadowMap.type = T.PCFSoftShadowMap;
+  renderer.setClearColor(0x19241f);
+  canvasHost.append(renderer.domElement);
+
+  const scene = new T.Scene();
+  const camera = new T.OrthographicCamera(-6,6,5,-5,.1,90);
+  const controls = new OrbitControls(camera,renderer.domElement);
+  controls.enableDamping = true;
+  controls.minZoom = .45;
+  controls.maxZoom = 4;
+  controls.maxPolarAngle = Math.PI*.48;
+  scene.add(new T.HemisphereLight(0xfff5df,0x6b8273,2.0));
+  const keyLight = new T.DirectionalLight(0xffe6bc,2.25);
+  keyLight.position.set(-5,10,3);
+  keyLight.castShadow = true;
+  Object.assign(keyLight.shadow.camera,{left:-9,right:9,top:9,bottom:-9,near:.1,far:30});
+  keyLight.shadow.mapSize.set(1024,1024);
+  keyLight.shadow.normalBias = .035;
+  scene.add(keyLight,keyLight.target);
+
+  const material = (color,metalness=.28,roughness=.46) => new T.MeshStandardMaterial({color,metalness,roughness});
+  const metal = material(0x9bafa9,.78,.32);
+  const graphite = material(0x273c36,.55);
+  const ivory = material(0xffeac9,.04);
+  const red = material(0xbc5b42,.42);
+  const brass = material(0xdca85e,.66,.32);
+  const springMetal = material(0xf2bf79,.68,.29);
+  const boardMat = material(0x33453a,.08,.85);
+  const boardEdge = material(0x202b25,.22,.68);
+  const trackMat = material(0x677863,.36,.64);
+  const plateMat = material(0x25332c,.15);
+  const pickMat = new T.MeshBasicMaterial({visible:false});
+  const chainMat = material(0xffffff,.58,.37);
+  const colors = {
+    dc:0xcb9252,ac:0xae82b7,r:0x82b7a6,c:0xbd8852,l:0x7998ae,d:0xc57f64,
+    gate:0xc58762,channel:0xb07659,switch:0x86b5a2,meter:0xc2b888,junction:0xa9b289,idler:0x55665d
+  };
+  const finishes = Object.fromEntries(Object.entries(colors).map(([type,color])=>[type,material(color)]));
+  const radii = {dc:.65,ac:.61,r:.52,c:.68,l:.73,d:.46,gate:.35,channel:.56,switch:.48,meter:.55,idler:.30};
+  const SPEED = 3.2; // world units of chain travel per coulomb
+  const Y = .66;
+
+  function mesh(parent, geometry, finish, x=0,y=0,z=0, shadow=true) {
+    const m = new T.Mesh(geometry,finish);
+    m.position.set(x,y,z);
+    m.castShadow = shadow;
+    m.receiveShadow = true;
+    parent.add(m);
+    return m;
+  }
+
+  const box = (g,w,h,d,m,x=0,y=0,z=0) => mesh(g,new T.BoxGeometry(w,h,d),m,x,y,z);
+  const cylinder = (g,r,h,m,x=0,y=0,z=0,n=32) => mesh(g,new T.CylinderGeometry(r,r,h,n),m,x,y,z);
+  function ring(g,r,tube,m,x=0,y=0,z=0,arc=TAU) {
+    const torus=mesh(g,new T.TorusGeometry(r,tube,8,44,arc),m,x,y,z);
+    torus.rotation.x=-Math.PI/2;
+    return torus;
+  }
+
+  function shapePlate(g,shape,depth,m) {
+    const geometry=new T.ExtrudeGeometry(shape,{depth,bevelEnabled:false,curveSegments:5});
+    geometry.rotateX(-Math.PI/2);
+    geometry.translate(0,-depth/2,0);
+    return mesh(g,geometry,m);
+  }
+
+  function teeth(g,r,n,m,saw=false) {
+    const shape = new T.Shape();
+    const profile = saw ? [[0,.86],[.18,1],[.94,.87]] : [[0,.85],[.27,1],[.69,1],[.88,.85]];
+    for (let k=0;k<n;k++) {
+      for (const [fraction,rr] of profile) {
+        const a=TAU*(k+fraction)/n;
+        shape[k===0 && fraction===0 ? 'moveTo' : 'lineTo'](r*rr*Math.cos(a),r*rr*Math.sin(a));
+      }
+    }
+    shape.closePath();
+    return shapePlate(g,shape,.105,m);
+  }
+
+  function coil(g,r,y,turns=2.7) {
+    const points=Array.from({length:65},(_,i)=>{
+      const a=TAU*turns*i/64, radius=r*(.15+.85*i/64);
+      return new T.Vector3(radius*Math.cos(a),y,radius*Math.sin(a));
+    });
+    return mesh(g,new T.TubeGeometry(new T.CatmullRomCurve3(points),64,.017,6,false),springMetal);
+  }
+
+  function gauge(g,r,y,color) {
+    const face=cylinder(g,r,.055,ivory,0,y,0);
+    face.castShadow=false;
+    ring(g,r,.022,graphite,0,y+.025);
+    for (let i=0;i<=10;i++) {
+      const a=-1.25+i*.25;
+      const tick=box(g,i%5===0 ? .023 : .013,.008,r*.13,graphite,
+        -r*.82*Math.sin(a),y+.031,-r*.82*Math.cos(a));
+      tick.rotation.y=a;
+    }
+    const hand=new T.Group();
+    hand.position.y=y+.065;
+    g.add(hand);
+    box(hand,.032,.021,r*.87,color,0,0,-r*.35);
+    cylinder(hand,.048,.032,graphite);
+    return hand;
+  }
+
+  const pickables = [], tags = [], updates = [];
+  let model, gears, loops, bounds, circuit, key, layout;
+  let paused=false, carry=0, lastFrame, nextSample=0, plot=[], grip;
+
+  function tag(id,type,x,y,z) {
+    const label=document.createElement('span');
+    label.className='part-tag';
+    const code=document.createElement('b');
+    code.textContent=id;
+    label.append(code,' '+names[type]);
+    if (type==='ac') {
+      const mark=document.createElement('small');
+      mark.textContent=' · NON-OFFICIAL';
+      label.append(mark);
+    }
+    $('labels').append(label);
+    tags.push({label,point:new T.Vector3(x,y,z)});
+  }
+
+  function pick(mesh,gear,action) {
+    mesh.userData={gear,action};
+    pickables.push(mesh);
+  }
+
+  function wheel(id,x,z,type,sign=1,source=id,y=Y,r=radii[type]) {
+    const group = new T.Group(), rotor = new T.Group();
+    group.position.set(x,y,z);
+    group.add(rotor);
+    model.add(group);
+    const gear={id,x,z,y,r,sign,source,group,rotor,type};
+    gears[id]=gear;
+    teeth(rotor,r,Math.max(11,Math.round(r*33)),graphite);
+    cylinder(rotor,r*.81,.137,finishes[type],0,.008);
+    ring(rotor,r*.75,.023,metal,0,.08);
+    for (let i=0;i<3;i++) {
+      const a=TAU*i/3;
+      cylinder(rotor,r*.068,.03,graphite,r*.58*Math.cos(a),.089,r*.58*Math.sin(a),12);
+    }
+    cylinder(rotor,r*.19,.12,metal,0,.11,0,12);
+    pick(cylinder(group,r,.275,pickMat,0,.07),gear);
+    return gear;
+  }
+
+  function plate(x,z,r,h=Y) {
+    cylinder(model,r,.15,plateMat,x,.08,z,12);
+    cylinder(model,r*.86,.055,metal,x,.177,z,12);
+    cylinder(model,r*.41,h-.22,graphite,x,(h+.22)/2-.04,z,16);
+    for (const dx of [-1,1]) cylinder(model,.051,.04,metal,x+r*.68*dx,.214,z,6);
+  }
+
+  function makeJunction({id,x,z}) {
+    plate(x,z,.85);
+    const lower=wheel('J0',x,z,'junction',1,'A1',Y,.71);
+    const sideA=wheel('J1a',x,z,'junction',1,'R1',1.07,.59);
+    const sideB=wheel('J1b',x,z,'junction',1,'R2',1.62,.49);
+    const cage=new T.Group();
+    sideA.group.add(cage);
+    ring(cage,.46,.033,brass,0,.19);
+    ring(cage,.46,.033,brass,0,.42);
+    const planets=Array.from({length:3},(_,i)=>{
+      const a=TAU*i/3;
+      const p=new T.Group();
+      p.position.set(.35*Math.cos(a),.30,.35*Math.sin(a));
+      p.rotation.z=Math.PI/2;
+      cage.add(p);
+      return teeth(p,.145,10,springMetal);
+    });
+    updates.push(()=>{
+      cage.rotation.y=lower.rotor.rotation.y*.5;
+      for (const p of planets) p.rotation.y=sideA.rotor.rotation.y-sideB.rotor.rotation.y;
+    });
+    tag(id,'junction',x,1.98,z+.55);
+  }
+
+  function makePart({id,x,z,sign}) {
+    if (id==='J1') { makeJunction({id,x,z}); return; }
+    const {type}=circuit.byId[id];
+    const g=wheel(id,x,z,type,sign);
+    const {r,group,rotor}=g;
+    plate(x,z,r+(type==='gate' ? .035 : .105));
+    tag(id,type,x,type==='c' || type==='meter' ? 1.17 : .98,z+(type==='gate' ? -.52 : r*.72));
+
+    switch (type) {
+      case 'dc': {
+        coil(rotor,r*.64,.126,3.2);
+        ring(group,r*.54,.026,brass,0,.15);
+        const reset = cylinder(group,.108,.055,brass,-.67,.1,.34,12);
+        box(group,.27,.15,.29,graphite,-.67,-.016,.34);
+        const pawl=box(group,.29,.076,.07,red,-.56,.13,.26);
+        pick(reset,null,()=>act(id));
+        updates.push(()=>{
+          const {tripped}=circuit.byId[id];
+          pawl.rotation.y=tripped ? -.8 : .48;
+          reset.material=tripped ? red : brass;
+        });
+        break;
+      }
+      case 'ac': {
+        const eccentric=new T.Group();
+        eccentric.position.y=.17;
+        group.add(eccentric);
+        cylinder(eccentric,.22,.09,brass);
+        const pin=cylinder(eccentric,.071,.081,metal,.15,.068,0,12);
+        const rod=box(group,.47,.055,.071,ivory,0,.245);
+        const end=new T.Vector3(), anchor=new T.Vector3(.43,.245,0);
+        updates.push(()=>{
+          const {phase:a,value}=circuit.byId[id];
+          const throwDistance=.07+.14*value/8;
+          pin.position.x=throwDistance;
+          eccentric.rotation.y=a;
+          end.set(throwDistance*Math.cos(a),.245,-throwDistance*Math.sin(a));
+          const dx=anchor.x-end.x,dz=anchor.z-end.z;
+          rod.position.copy(end).lerp(anchor,.5);
+          rod.rotation.y=-Math.atan2(dz,dx);
+          rod.scale.x=Math.hypot(dx,dz)/.47;
+        });
+        break;
+      }
+      case 'r':
+        for (const s of [-1,1]) {
+          box(group,.17,.14,.26,graphite,s*r*.64,.14);
+          box(group,.14,.035,.22,brass,s*r*.64,.226);
+        }
+        box(group,r*1.24,.074,.15,finishes.r,0,.18);
+        break;
+      case 'c': {
+        coil(rotor,r*.70,.155,3);
+        const hand=gauge(group,r*.41,.235,red);
+        updates.push(()=>{
+          const p=circuit.byId[id];
+          hand.rotation.y=1.25*clamp(p.q/p.value/5,-1,1);
+        });
+        break;
+      }
+      case 'l':
+        ring(rotor,r*.75,.075,metal,0,.127);
+        for (let i=0;i<5;i++) {
+          const a=TAU*i/5;
+          const spoke=box(rotor,.12,.075,r*.57,graphite,Math.sin(a)*r*.38,.113,Math.cos(a)*r*.38);
+          spoke.rotation.y=a;
+        }
+        cylinder(rotor,.17,.09,brass,0,.2,0,12);
+        break;
+      case 'd': {
+        const inner=teeth(rotor,r*.61,12,brass,true);
+        inner.position.y=.125;
+        const pawl=box(group,.24,.076,.079,red,-r*.49,.165,-.13);
+        cylinder(group,.05,.06,metal,-r*.69,.175,-.13,10);
+        updates.push(()=>pawl.rotation.y=.45+Math.min(.35,Math.abs(circuit.byId[id].i)*
+          (.08+.08*Math.sin(g.rotor.rotation.y*12))));
+        break;
+      }
+      case 'gate':
+        coil(rotor,r*.65,.135,2.35);
+        ring(group,r*.79,.023,brass,0,.145,Math.PI*.9);
+        box(rotor,.027,.044,.21,ivory,0,.187,-.092);
+        break;
+      case 'channel': {
+        ring(rotor,r*.57,.058,metal,0,.117);
+        const pads=[-1,1].map(s=>box(group,.18,.114,.26,red,s*r*.72,.151));
+        const gate=circuit.preset.positions.find(p=>p.id===circuit.byId[id].gate);
+        box(model,Math.abs(gate.x-x),.086,.13,graphite,(x+gate.x)/2,.39,z);
+        updates.push(()=>{
+          const open=circuit.gateFraction(circuit.byId[circuit.byId[id].gate]);
+          pads.forEach((pad,i)=>pad.position.x=(i*2-1)*r*(.59+.27*open));
+        });
+        break;
+      }
+      case 'switch': {
+        for (const dx of [-.16,.16]) cylinder(group,.055,.072,brass,dx,.192,-.06,12);
+        const blade=box(group,.37,.055,.092,brass,0,.24,-.06);
+        const handle=cylinder(group,.09,.091,finishes.switch,0,.282,.17,12);
+        pick(handle,null,()=>act(id));
+        updates.push(()=>blade.rotation.y=circuit.byId[id].closed ? 0 : -.92);
+        break;
+      }
+      case 'meter': {
+        const hand=gauge(group,r*.83,.181,red);
+        updates.push(()=>hand.rotation.y=1.25*Math.tanh(1.35*circuit.byId[id].i));
+        break;
+      }
+    }
+  }
+
+  // External tangents join convexly ordered sprockets. Each entry stores a true arc or span.
+  function chainPath(wheels) {
+    const normal=wheels.map((g,i)=>{
+      const b=wheels[(i+1)%wheels.length];
+      const dx=b.x-g.x,dz=b.z-g.z,d=Math.hypot(dx,dz);
+      if (d<=Math.abs(g.r-b.r)) throw Error('Invalid chain tangent at '+g.id);
+      return Math.atan2(dz,dx)-Math.acos((g.r-b.r)/d);
+    });
+    const point=(g,a)=>[g.x+g.r*Math.cos(a),g.z+g.r*Math.sin(a)];
+    const sections=[];
+    let length=0;
+    wheels.forEach((g,i)=>{
+      const start=normal[(i+wheels.length-1)%wheels.length],finish=normal[i];
+      const angle=((finish-start)%TAU+TAU)%TAU;
+      sections.push({g,start,angle,offset:length,len:angle*g.r});
+      length+=angle*g.r;
+      const a=point(g,finish),b=point(wheels[(i+1)%wheels.length],finish);
+      const span=Math.hypot(b[0]-a[0],b[1]-a[1]);
+      sections.push({a,b,heading:Math.atan2(b[1]-a[1],b[0]-a[0]),offset:length,len:span});
+      length+=span;
+    });
+    return {sections,length};
+  }
+
+  const linkShape=new T.Shape();
+  linkShape.moveTo(-.058,-.047);
+  linkShape.lineTo(.058,-.047);
+  linkShape.quadraticCurveTo(.085,-.047,.085,-.014);
+  linkShape.lineTo(.085,.014);
+  linkShape.quadraticCurveTo(.085,.047,.058,.047);
+  linkShape.lineTo(-.058,.047);
+  linkShape.quadraticCurveTo(-.085,.047,-.085,.014);
+  linkShape.lineTo(-.085,-.014);
+  linkShape.quadraticCurveTo(-.085,-.047,-.058,-.047);
+  const hole=new T.Path();
+  hole.absellipse(0,0,.046,.024,0,TAU,true);
+  linkShape.holes.push(hole);
+  const linkGeometry=new T.ExtrudeGeometry(linkShape,{depth:.042,bevelEnabled:false,curveSegments:4});
+  linkGeometry.rotateX(-Math.PI/2);
+  linkGeometry.translate(0,-.021,0);
+
+  function makeLoop(sourceId,ids) {
+    const wheels=ids.map(id=>gears[id]);
+    const {sections,length}=chainPath(wheels);
+    const count=Math.max(3,Math.round(length/.158));
+    const links=new T.InstancedMesh(linkGeometry,chainMat,count);
+    links.instanceMatrix.setUsage(T.DynamicDrawUsage);
+    links.frustumCulled=false;
+    links.receiveShadow=true;
+    model.add(links);
+    const driver=wheels.find(g=>g.source===sourceId);
+    if (!driver) throw Error('Chain has no driver '+sourceId);
+    loops.push({links,sections,length,driver,y:driver.y,wheels});
+  }
+
+  function distance(g) {
+    const p=circuit.byId[g.source];
+    if (p.type==='gate') {
+      const rotor=gears[p.id];
+      return rotor.r*GATE_TRAVEL*circuit.gateFraction(p)*g.sign;
+    }
+    return p.travel*SPEED*g.sign;
+  }
+
+  function angle(g) {
+    return -distance(g)/g.r - (g.type==='gate' ? GATE_MIN : 0);
+  }
+
+  const pose=new T.Object3D();
+  const loose=new T.Color(0x597b72), taut=new T.Color(0xf7b679), tint=new T.Color();
+  function advanceModels() {
+    for (const gear of Object.values(gears)) gear.rotor.rotation.y=angle(gear);
+    for (const update of updates) update();
+    for (const {links,sections,length,driver,y,wheels} of loops) {
+      const phase=(distance(driver)%length+length)%length;
+      const tension=clamp(Math.max(...wheels.map(g=>Math.abs(circuit.byId[g.source].v)))/5,0,1);
+      for (let i=0;i<links.count;i++) {
+        const d=(phase+i*length/links.count)%length;
+        const s=sections.find(piece=>d<piece.offset+piece.len);
+        const u=(d-s.offset)/s.len;
+        if (s.g) {
+          const a=s.start+u*s.angle;
+          pose.position.set(s.g.x+s.g.r*Math.cos(a),y,s.g.z+s.g.r*Math.sin(a));
+          pose.rotation.set(0,-a-Math.PI/2,0);
+        } else {
+          const sag=.11*(1-tension)*4*u*(1-u);
+          pose.position.set(s.a[0]+u*(s.b[0]-s.a[0]),y-sag,s.a[1]+u*(s.b[1]-s.a[1]));
+          pose.rotation.set(0,-s.heading,-.44*(1-2*u)*sag/s.len);
+        }
+        pose.scale.setScalar(i%2 ? .90 : 1);
+        pose.updateMatrix();
+        links.setMatrixAt(i,pose.matrix);
+        links.setColorAt(i,tint.copy(loose).lerp(taut,tension).multiplyScalar(i%2 ? .79 : 1));
+      }
+      links.instanceMatrix.needsUpdate=true;
+      links.instanceColor.needsUpdate=true;
+    }
+  }
+
+  const routes = {
+    bridge:[
+      [[-4.15,.05],[-2.65,.05],[-2.65,-2.15],[-1.35,-2.15]],
+      [[-2.65,.05],[-2.65,1.9],[-1.35,1.9]],
+      [[-4.15,-1.8],[-4.15,-3.1],[.96,-3.1],[.96,1.9],[1.5,1.9]],
+      [[.96,-2.15],[1.5,-2.15]],
+      [[-1.35,-2.15],[-1.35,-2.76],[4.05,-2.76],[4.05,-1.75]],
+      [[1.5,-2.76],[1.5,-2.15]],
+      [[-1.35,1.9],[-1.35,2.7],[4.05,2.7],[4.05,1.9]],
+      [[1.5,1.9],[1.5,2.7]],[[4.05,-1.75],[4.65,-1.75],[4.65,1.9],[4.05,1.9]]
+    ],
+    ring:[
+      [[-3.6,-.85],[-3.6,1.65]],[[0,-.85],[0,1.65]],[[3.6,-.85],[3.6,1.65]],
+      [[-3.6,-.85],[-3.6,-2.2],[3.6,-2.2],[3.6,-.85]],[[0,-3.1],[0,-.85]],
+      [[-3.6,1.65],[-3.6,.52],[.92,.52],[.92,1.65]],
+      [[0,1.65],[0,.21],[4.52,.21],[4.52,1.65]],
+      [[3.6,1.65],[3.6,3.45],[-2.68,3.45],[-2.68,1.65]]
+    ],
+    amp:[
+      [[-3.6,-2.5],[-3.6,-3.12],[2.67,-3.12],[2.67,-2.15],[2.67,1.03]],
+      [[-3.6,1.85],[-3.6,-.2],[1.75,-.2],[1.75,1.03]]
+    ]
+  };
+
+  function buildBoard() {
+    const all=Object.values(gears);
+    const extent=(axis,sign)=>sign*(Math.max(...all.map(g=>g[axis]*sign+g.r))+.83);
+    const minX=extent('x',-1),maxX=extent('x',1),minZ=extent('z',-1),maxZ=extent('z',1);
+    const w=maxX-minX,d=maxZ-minZ,x=(minX+maxX)/2,z=(minZ+maxZ)/2;
+    bounds={w,d,x,z};
+    box(model,w+.18,.20,d+.18,boardEdge,x,-.19,z);
+    box(model,w,.17,d,boardMat,x,-.08,z).castShadow=false;
+    for (const a of [-1,1]) {
+      box(model,w-.24,.038,.049,trackMat,x,.019,z+a*(d/2-.13));
+      box(model,.049,.038,d-.24,trackMat,x+a*(w/2-.13),.019,z);
+    }
+    for (const a of [-1,1]) for (const b of [-1,1]) {
+      const sx=x+a*(w/2-.28),sz=z+b*(d/2-.28);
+      cylinder(model,.093,.036,metal,sx,.025,sz,12);
+      box(model,.102,.007,.021,graphite,sx,.047,sz).rotation.y=a*b*.37;
+    }
+    const dots=new T.InstancedMesh(new T.CircleGeometry(.018,6).rotateX(-Math.PI/2),
+      trackMat,Math.floor((w-.48)/.38+1)*Math.floor((d-.48)/.38+1));
+    let n=0;
+    for (let px=minX+.24;px<=maxX-.24;px+=.38) for (let pz=minZ+.24;pz<=maxZ-.24;pz+=.38) {
+      dots.setMatrixAt(n++,new T.Matrix4().makeTranslation(px,.007,pz));
+    }
+    dots.count=n;
+    model.add(dots);
+    for (const route of routes[key] ?? []) {
+      for (let i=1;i<route.length;i++) {
+        const [x0,z0]=route[i-1], [x1,z1]=route[i];
+        const dx=x1-x0,dz=z1-z0;
+        const track=box(model,Math.hypot(dx,dz)+.062,.019,.07,trackMat,(x0+x1)/2,.019,(z0+z1)/2);
+        track.rotation.y=-Math.atan2(dz,dx);
+        track.castShadow=false;
+      }
+    }
+  }
+
+  function resize() {
+    const {clientWidth:w,clientHeight:h}=canvasHost;
+    if (!w || !h || !bounds) return;
+    renderer.setSize(w,h,false);
+    const {w:bw,d:bd}=bounds, aspect=w/h;
+    const halfHeight=Math.max((.74*bd+.22*bw+1.35)/1.52,(.97*bw+.23*bd)/1.76/aspect);
+    camera.left=-halfHeight*aspect;
+    camera.right=halfHeight*aspect;
+    camera.top=halfHeight;
+    camera.bottom=-halfHeight;
+    camera.updateProjectionMatrix();
+  }
+
+  function rebuild() {
+    if (model) {
+      scene.remove(model);
+      model.traverse(o=>{
+        if (o.geometry && o.geometry!==linkGeometry) o.geometry.dispose();
+        if (o.isInstancedMesh) o.dispose();
+      });
+    }
+    tags.length = updates.length = pickables.length = 0;
+    $('labels').replaceChildren();
+    model = new T.Group();
+    gears = {};
+    loops = [];
+    scene.add(model);
+    for (const position of layout.positions) makePart(position);
+    if (layout.loops) {
+      for (const [source,...ids] of layout.loops) makeLoop(source,ids);
+    } else {
+      for (const [id,[x,z]] of Object.entries(layout.idlers)) {
+        const gear=gears[id], returnId=id+' return';
+        plate(x,z,.34,gear.y-.04);
+        wheel(returnId,x,z,'idler',gear.sign,id,gear.y);
+        makeLoop(id,[id,returnId]);
+      }
+    }
+    buildBoard();
+    const {x,z}=bounds;
+    keyLight.position.set(x-5,10,z+3);
+    keyLight.target.position.set(x,0,z);
+    controls.target.set(x,.20,z);
+    camera.position.set(x+3.7,11,z+10);
+    camera.zoom=1;
+    controls.update();
+    resize();
+  }
+
+  const projection=new T.Vector3();
+  function positionTags() {
+    const {clientWidth:w,clientHeight:h}=canvasHost;
+    for (const {label,point} of tags) {
+      projection.copy(point).project(camera);
+      const x=(projection.x+1)*w/2,y=(1-projection.y)*h/2;
+      label.hidden=x<15 || y<10 || x>w-15 || y>h-10;
+      label.style.left=x+'px';
+      label.style.top=y+'px';
+    }
+  }
+
+  const option=(select,value,label)=>select.add(new Option(label,value));
+  const reading=(n,digits=3)=>(Math.abs(n)<.5*10**-digits ? 0 : n).toFixed(digits);
+  const actions=new Map();
+  function updateActions() {
+    for (const [id,button] of actions) {
+      const p=circuit.byId[id];
+      const text=p.type==='switch'
+        ? (p.closed ? 'Closed · Open switch' : 'Open · Close switch')
+        : (p.tripped ? 'Tripped · Reset breaker' : 'Breaker ready');
+      if (button.textContent!==text) button.textContent=text;
+      if (p.type==='dc') button.disabled=!p.tripped;
+    }
+  }
+
+  function act(id) {
+    const p=circuit.byId[id];
+    if (p.type==='switch') p.closed=!p.closed;
+    if (p.type==='dc') p.tripped=false;
+    circuit.discontinuity=true;
+    updateActions();
+  }
+
+  function makeInputs() {
+    const target=$('parameters');
+    target.replaceChildren();
+    actions.clear();
+    for (const p of circuit.parts.filter(p=>!p.hidden)) {
+      const row=document.createElement('div');
+      row.className='part-setting';
+      const title=document.createElement('h3'), code=document.createElement('b');
+      code.textContent=p.id;
+      title.append(code,names[p.type]);
+      if (p.type==='ac') {
+        const label=document.createElement('small');
+        label.textContent='Non-official';
+        title.append(label);
+      }
+      row.append(title);
+      const controls=params[p.type]?.slice() ?? [];
+      if (p.type==='c' && 'initial' in p) controls.push(['initial','Starting voltage on reset','V',-5,5,.05]);
+      for (const [property,label,unit,min,max,step] of controls) {
+        const field=document.createElement('label'), span=document.createElement('span');
+        const output=document.createElement('output'), slider=document.createElement('input');
+        field.className='param';
+        span.textContent=label;
+        slider.type='range';
+        Object.assign(slider,{min,max,step,value:p[property]});
+        slider.setAttribute('aria-label',p.id+' '+label);
+        const print=value=>output.textContent=Number(value.toFixed(3))+' '+unit;
+        print(p[property]);
+        slider.addEventListener('input',()=>{
+          const value=Number(slider.value);
+          layout.parts.find(part=>part.id===p.id)[property]=value;
+          if (property!=='initial') {
+            circuit.byId[p.id][property]=value;
+            circuit.discontinuity=true;
+          }
+          print(value);
+        });
+        field.append(span,output,slider);
+        row.append(field);
+      }
+      if (p.type==='switch' || p.type==='dc') {
+        const button=document.createElement('button');
+        button.className='part-action';
+        button.type='button';
+        button.addEventListener('click',()=>act(p.id));
+        actions.set(p.id,button);
+        row.append(button);
+      }
+      target.append(row);
+    }
+    updateActions();
+    if (key==='parallel') {
+      const row=document.createElement('div');
+      row.className='part-setting';
+      row.textContent='J1 Differential · fixed gearing';
+      target.append(row);
+    }
+  }
+
+  function prepareProbes() {
+    for (const [index,id] of ['voltage','current'].entries()) {
+      const select=$(id);
+      select.replaceChildren();
+      for (const p of circuit.parts.filter(p=>!p.hidden)) {
+        option(select,p.id,p.id+' · '+names[p.type]);
+      }
+      select.value=layout.probes[index];
+    }
+  }
+
+  function reset() {
+    releaseGrip();
+    circuit=new Circuit(layout);
+    plot=[];
+    carry=nextSample=0;
+    capture();
+    updateActions();
+  }
+
+  function load(id) {
+    key=id;
+    layout={...presets[id],parts:presets[id].parts.map(p=>({...p}))};
+    actions.clear();
+    reset();
+    $('circuit-title').textContent=layout.name;
+    $('description').textContent=layout.description;
+    prepareProbes();
+    makeInputs();
+    rebuild();
+  }
+
+  const scope=$('scope'), ctx=scope.getContext('2d');
+  const WINDOW=6, SAMPLE=1/60;
+  function capture() {
+    plot.push({t:circuit.time,points:Object.fromEntries(circuit.parts.map(p=>[p.id,[p.v,p.i]]))});
+    nextSample+=SAMPLE;
+    while (plot[0].t<circuit.time-WINDOW-SAMPLE) plot.shift();
+  }
+
+  function drawScope() {
+    const {clientWidth:w,clientHeight:h}=scope;
+    if (!w || !h) return;
+    const dpi=Math.min(devicePixelRatio,2);
+    if (scope.width!==Math.round(w*dpi) || scope.height!==Math.round(h*dpi)) {
+      scope.width=Math.round(w*dpi);
+      scope.height=Math.round(h*dpi);
+    }
+    ctx.setTransform(dpi,0,0,dpi,0,0);
+    ctx.clearRect(0,0,w,h);
+    const left=39,right=w-39,top=11,bottom=h-23;
+    const zero=(top+bottom)/2, height=(bottom-top)/2;
+    const start=Math.max(0,circuit.time-WINDOW);
+    ctx.strokeStyle='#303e35';
+    ctx.fillStyle='#a4b1a6';
+    ctx.font='10px ui-monospace,monospace';
+    ctx.lineWidth=1;
+    ctx.beginPath();
+    for (let k=0;k<=6;k++) {
+      const x=left+k*(right-left)/6;
+      ctx.moveTo(x,top); ctx.lineTo(x,bottom);
+    }
+    for (let k=0;k<=4;k++) {
+      const y=top+k*(bottom-top)/4;
+      ctx.moveTo(left,y); ctx.lineTo(right,y);
+    }
+    ctx.stroke();
+    ctx.strokeStyle='#65756a';
+    ctx.beginPath();
+    ctx.moveTo(left,zero);
+    ctx.lineTo(right,zero);
+    ctx.stroke();
+    ctx.textAlign='center';
+    for (const k of [0,3,6]) ctx.fillText((start+k).toFixed(1)+'s',left+k*(right-left)/6,h-7);
+    const trace=(axis,id,color,side,unit,readout)=>{
+      const p=circuit.byId[id];
+      $(readout).value=reading(axis ? p.i : p.v)+' '+unit;
+      const signal=plot.map(row=>row.points[id][axis]);
+      const peak=Math.max(.01,...signal.map(Math.abs))*1.06;
+      ctx.fillStyle=ctx.strokeStyle=color;
+      ctx.textAlign=side ? 'left' : 'right';
+      const annotation=peak>=10 ? 0 : peak>=1 ? 1 : 2;
+      const labelX=side ? right+4 : left-4;
+      ctx.fillText(reading(peak,annotation),labelX,top+4);
+      ctx.fillText('0',labelX,zero+3);
+      ctx.fillText(reading(-peak,annotation),labelX,bottom);
+      ctx.save();
+      ctx.beginPath();
+      ctx.rect(left,top,right-left,bottom-top);
+      ctx.clip();
+      ctx.lineWidth=1.6;
+      ctx.beginPath();
+      plot.forEach(({t},i)=>{
+        const x=left+(t-start)*(right-left)/WINDOW;
+        const y=zero-signal[i]/peak*height;
+        if (i===0) ctx.moveTo(x,y); else ctx.lineTo(x,y);
+      });
+      ctx.stroke();
+      ctx.restore();
+    };
+    trace(0,$('voltage').value,'#ffc37b',0,'V','volts');
+    trace(1,$('current').value,'#9bdfab',1,'A','amps');
+  }
+
+  const surface=renderer.domElement, pointer=new T.Vector2(), caster=new T.Raycaster();
+  const horizontal=new T.Plane(new T.Vector3(0,1,0),0), hitPoint=new T.Vector3();
+  function pointRay(event) {
+    const {left,top,width,height}=surface.getBoundingClientRect();
+    pointer.set((event.clientX-left)/width*2-1,1-(event.clientY-top)/height*2);
+    caster.setFromCamera(pointer,camera);
+  }
+
+  function pointerAngle(gear) {
+    horizontal.constant=-gear.y;
+    if (!caster.ray.intersectPlane(horizontal,hitPoint)) return null;
+    const dx=hitPoint.x-gear.x,dz=hitPoint.z-gear.z;
+    return Math.hypot(dx,dz)>.025 ? Math.atan2(-dz,dx) : null;
+  }
+
+  function releaseGrip(event) {
+    if (!grip || (event && event.pointerId!==grip.pointer)) return;
+    const {pointer:id,action}=grip;
+    grip=null;
+    controls.enabled=true;
+    if (surface.hasPointerCapture(id)) surface.releasePointerCapture(id);
+    surface.style.cursor='';
+    if (circuit.drive) {
+      circuit.drive=null;
+      circuit.discontinuity=true;
+    }
+    if (event?.type==='pointerup' && action) action();
+  }
+
+  surface.addEventListener('pointerdown',event=>{
+    if (event.button!==0 || grip) return;
+    pointRay(event);
+    const hit=caster.intersectObjects(pickables,false)[0];
+    if (!hit) return;
+    const {gear,action}=hit.object.userData;
+    let previous=null;
+    if (gear) previous=pointerAngle(gear);
+    grip={pointer:event.pointerId,gear,action,previous,target:gear ? angle(gear) : 0};
+    controls.enabled=false;
+    surface.setPointerCapture(event.pointerId);
+    surface.style.cursor='grabbing';
+    event.preventDefault();
+    event.stopImmediatePropagation();
+  },true);
+
+  surface.addEventListener('pointermove',event=>{
+    pointRay(event);
+    if (!grip) {
+      const hit=caster.intersectObjects(pickables,false)[0];
+      surface.style.cursor=hit ? (hit.object.userData.action ? 'pointer' : 'grab') : '';
+      return;
+    }
+    if (event.pointerId!==grip.pointer || !grip.gear) return;
+    const a=pointerAngle(grip.gear);
+    if (a===null) return;
+    if (grip.previous!==null) grip.target+=Math.atan2(Math.sin(a-grip.previous),Math.cos(a-grip.previous));
+    grip.previous=a;
+  });
+
+  for (const event of ['pointerup','pointercancel','lostpointercapture']) {
+    surface.addEventListener(event,releaseGrip);
+  }
+
+  function applyTorque() {
+    const gear=grip?.gear;
+    if (!gear) return;
+    const p=circuit.byId[gear.source];
+    const diff=grip.target-angle(gear);
+    const volts=-gear.sign*clamp(5.5*diff,-7,7);
+    circuit.drive={id:p.id,volts};
+  }
+
+  $('pause').addEventListener('click',()=>{
+    paused=!paused;
+    $('pause').textContent=paused ? 'Resume' : 'Pause';
+    $('pause').setAttribute('aria-pressed',String(paused));
+  });
+  $('reset').addEventListener('click',reset);
+  $('preset').addEventListener('change',event=>load(event.target.value));
+  for (const [id,preset] of Object.entries(presets)) option($('preset'),id,preset.name);
+  load($('preset').value);
+  new ResizeObserver(resize).observe(canvasHost);
+
+  function frame(now) {
+    try {
+      if (!paused && lastFrame!==undefined) {
+        carry+=Math.min((now-lastFrame)/1000,.08);
+        while (carry>=STEP) {
+          applyTorque();
+          circuit.step();
+          if (circuit.time+STEP*1e-4>=nextSample) capture();
+          carry-=STEP;
+        }
+      }
+      lastFrame=now;
+      applyTorque();
+      $('clock').value='t '+circuit.time.toFixed(2)+' s';
+      $('interaction').value=circuit.drive
+        ? grip.gear.id+' · '+reading(circuit.drive.volts,2)+' V applied' : '';
+      updateActions();
+      advanceModels();
+      controls.update();
+      renderer.render(scene,camera);
+      positionTags();
+      drawScope();
+      requestAnimationFrame(frame);
+    } catch (error) {
+      showError(error);
+    }
+  }
+  requestAnimationFrame(frame);
+}
+</script>
+</body>
+</html>

@@ -1,0 +1,608 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<meta name="color-scheme" content="dark">
+<title>Spintronics · Damper Bench</title>
+<script type="importmap">
+{
+  "imports": {
+    "three": "https://cdn.jsdelivr.net/npm/three@0.160.0/build/three.module.js",
+    "three/addons/": "https://cdn.jsdelivr.net/npm/three@0.160.0/examples/jsm/"
+  }
+}
+</script>
+<style>
+:root{font:14px system-ui,sans-serif;color:#e8ece5;background:#111916;--muted:#a6b2a8;--line:#37433a;--panel:#1a241e;--green:#9bdfab;--amber:#ffc37b;--oil:#77c8bf;--copper:#dc9873}
+*{box-sizing:border-box}
+body,h1,h2,p{margin:0}
+main{max-width:1430px;margin:auto;padding:24px clamp(15px,3vw,45px)}
+header{display:flex;align-items:end;justify-content:space-between;flex-wrap:wrap;gap:17px;margin-bottom:20px}
+h1{font-size:clamp(31px,4vw,48px);line-height:1;letter-spacing:-.055em;font-weight:630}
+.kicker,.label{font:600 10px ui-monospace,monospace;text-transform:uppercase;letter-spacing:.14em;color:var(--muted)}
+.kicker{margin-bottom:8px;color:var(--green)}
+button,select{font:inherit;border:1px solid #4a5950;border-radius:6px;background:#222f28;color:inherit;padding:8px 11px}
+button{cursor:pointer}
+button:hover,select:hover{border-color:var(--green)}
+button:focus-visible,select:focus-visible,input:focus-visible{outline:2px solid var(--green);outline-offset:3px}
+.toolbar,.toggle{display:flex;align-items:center;gap:7px;flex-wrap:wrap}
+.toggle button[aria-pressed="true"]{background:#374b3e;border-color:#86aa91;color:#e7f5e8}
+#pause{min-width:73px;background:#b0e7ba;color:#14291c;border-color:#b0e7ba;font-weight:700}
+.bench{display:grid;grid-template-columns:minmax(0,1fr) minmax(300px,345px);border:1px solid var(--line);border-radius:13px;overflow:hidden;background:#19241f}
+.viewport{position:relative;min-height:648px;isolation:isolate}
+#view{position:absolute;inset:0}
+#view canvas{display:block;width:100%;height:100%;touch-action:none}
+.scene-head,.scene-foot{position:absolute;z-index:1;left:21px;right:21px;display:flex;justify-content:space-between;gap:12px;pointer-events:none}
+.scene-head{top:20px;align-items:start}
+.scene-head h2{font-size:19px;font-weight:650;letter-spacing:-.02em}
+.scene-head p{margin-top:5px;color:#c2cec2;font-size:12px;line-height:1.45;max-width:42ch}
+#clock{color:var(--green);font:12px ui-monospace,monospace;white-space:nowrap}
+.scene-foot{bottom:17px;align-items:end;color:#b5c1b6;font-size:11px;flex-wrap:wrap}
+.key{display:flex;flex-wrap:wrap;gap:6px 14px}
+.key span{display:inline-flex;align-items:center;gap:5px;white-space:nowrap}
+.key i{width:8px;height:8px;border-radius:2px;background:var(--swatch)}
+aside{min-width:0;border-left:1px solid var(--line);background:var(--panel)}
+aside section{padding:16px;border-bottom:1px solid var(--line)}
+aside section:last-child{border-bottom:0}
+aside h2{font-size:15px;font-weight:650;margin-bottom:11px}
+#scope{display:block;width:100%;height:173px;border:1px solid #33443a;border-radius:7px;background:#121c17}
+.plot-key{display:flex;gap:15px;margin-top:7px;color:#bdc9bd;font-size:11px}
+.plot-key span{display:flex;align-items:center;gap:5px}
+.plot-key i{width:15px;border-top:2px solid var(--green)}
+.plot-key .ideal{border-top:1px dashed var(--amber)}
+.readings{display:grid;grid-template-columns:1fr 1fr;margin-top:11px;gap:8px;font:600 14px ui-monospace,monospace}
+#volts{color:var(--amber)}
+#amps{color:var(--green)}
+.double{display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-bottom:9px}
+.select{display:grid;gap:5px}
+.select select{width:100%;min-width:0;padding:5px 7px;font-size:12px}
+.param{display:grid;grid-template-columns:1fr auto;align-items:center;gap:4px 9px;margin-top:9px;font-size:12px;color:#cad4ca}
+.param input{width:100%;margin:0;grid-column:1/-1;accent-color:var(--green)}
+.param output{color:#e8ece5;font:11px ui-monospace,monospace}
+.note{margin-top:9px;color:var(--muted);font-size:11px;line-height:1.45}
+.note a{color:#c2dac5}
+#status{margin-top:12px;color:var(--amber);white-space:pre-wrap}
+[hidden]{display:none!important}
+@media(max-width:810px){.bench{grid-template-columns:minmax(0,1fr)}.viewport{min-height:clamp(380px,72vw,580px)}aside{border-left:0;border-top:1px solid var(--line);display:grid;grid-template-columns:1fr 1fr}aside section:first-child{grid-row:span 2;border-right:1px solid var(--line);border-bottom:0}}
+@media(max-width:520px){aside{display:block}aside section:first-child{border-right:0;border-bottom:1px solid var(--line)}.scene-head,.scene-foot{left:13px;right:13px}.scene-head p{max-width:30ch}}
+</style>
+</head>
+<body>
+<main>
+  <header>
+    <div><p class="kicker">Spintronics</p><h1>Damper Bench</h1></div>
+    <div class="toolbar">
+      <div class="toggle" role="group" aria-label="Mechanism">
+        <button id="oil" type="button" aria-pressed="true">Silicone oil</button>
+        <button id="eddy" type="button" aria-pressed="false">Eddy current</button>
+      </div>
+      <button id="reset" type="button">Reset</button>
+      <button id="pause" type="button" aria-pressed="false">Pause</button>
+    </div>
+  </header>
+  <div class="bench">
+    <section class="viewport" aria-label="Rotary damper cutaway">
+      <div id="view" aria-label="Interactive three-dimensional model"></div>
+      <div class="scene-head">
+        <div><h2 id="scene-title">Silicone-oil damper</h2><p id="scene-description">Both faces of the rotor shear thin oil films against the housing.</p></div>
+        <output id="clock" aria-label="Simulation time">0.00 s</output>
+      </div>
+      <div class="scene-foot">
+        <div class="key" id="scene-key"></div>
+        <p>Drag to orbit · scroll to zoom</p>
+      </div>
+    </section>
+    <aside>
+      <section aria-labelledby="plot-title">
+        <h2 id="plot-title">Voltage vs current</h2>
+        <canvas id="scope" aria-label="Live voltage versus current in spin units, with ideal resistor reference"></canvas>
+        <div class="plot-key"><span><i></i>Live trace</span><span><i class="ideal"></i><span id="ideal-label">Ideal 50 spin Ω</span></span></div>
+        <div class="readings"><output id="volts" aria-label="Voltage">0.00 spin V</output><output id="amps" aria-label="Current">0.0 mspin A</output></div>
+      </section>
+      <section aria-labelledby="drive-title">
+        <h2 id="drive-title">Drive</h2>
+        <div class="double">
+          <label class="select"><span class="label">Source</span><select id="source"><option value="torque">Torque</option><option value="speed">Chain speed</option></select></label>
+          <label class="select"><span class="label">Waveform</span><select id="wave"><option value="sine">Sine</option><option value="dc">DC</option></select></label>
+        </div>
+        <label class="param"><span id="drive-label">Voltage amplitude</span><output id="level-value"></output><input id="level" type="range" min="0" max="100" step="1" value="100"></label>
+        <label class="param" id="frequency-row"><span>Frequency</span><output id="frequency-value"></output><input id="frequency" type="range" min="0.15" max="8" step="0.05" value="0.65"></label>
+      </section>
+      <section aria-labelledby="parameter-title">
+        <h2 id="parameter-title">Parameters</h2>
+        <div id="oil-settings">
+          <label class="select"><span class="label">Resistor label</span><select id="resistor"></select></label>
+          <label class="param"><span>Oil gap</span><output id="gap-value"></output><input id="gap" type="range" min="0.15" max="0.70" step="0.01" value="0.30"></label>
+          <label class="param"><span>Shear-thinning index</span><output id="exponent-value"></output><input id="exponent" type="range" min="0.65" max="1" step="0.01" value="0.80"></label>
+          <label class="param"><span>Carreau time scale</span><output id="lambda-value"></output><input id="lambda" type="range" min="1" max="14" step="0.1" value="6"></label>
+        </div>
+        <div id="eddy-settings" hidden>
+          <label class="param"><span>Gap field</span><output id="field-value"></output><input id="field" type="range" min="0.25" max="0.85" step="0.01" value="0.57"></label>
+        </div>
+        <label class="param"><span>Equivalent shaft mass</span><output id="mass-value"></output><input id="mass" type="range" min="4" max="30" step="0.5" value="10"></label>
+        <p class="note" id="calibration">Estimated oil model, scaled to the label at 3 spin V.</p>
+        <p class="note"><a href="REPORT.md">Derivation and bench results</a></p>
+      </section>
+    </aside>
+  </div>
+  <p id="status" role="alert" hidden></p>
+</main>
+<script type="module">
+import { create, KIT_LABELS, SIM_LABELS, SCIENCE_MAX_LABEL, PITCH_RADIUS as radius, SPIN_SCALE as scale } from './model.js';
+
+const $ = id => document.getElementById(id);
+const input = id => Number($(id).value);
+const TWO_PI = 2 * Math.PI;
+const dt = 1 / 4800;
+const units = 100; // scene units per metre
+const pitch = radius * units;
+const estimatedChainPitch = 0.0064 * units; // notes/how-it-works.md:9
+const sceneText = {
+  oil: ['Silicone-oil damper', 'Both faces of the rotor shear thin oil films against the housing.',
+    [['Oil film', '#77c8bf'], ['Rotor', '#bf9970'], ['Cutaway shell', '#7b9289']]],
+  eddy: ['Eddy-current damper', 'The copper disc passes through the stationary magnet gap.',
+    [['Copper disc', '#dc9873'], ['Magnet pole', '#c36759'], ['Return yoke', '#7b9289']]],
+};
+
+function fail(error) {
+  $('status').hidden = false;
+  $('status').textContent = `Simulator error ${error.message}`;
+  console.error(error);
+}
+
+async function boot() {
+  const [T, { OrbitControls }] = await Promise.all([
+    import('three'), import('three/addons/controls/OrbitControls.js'),
+  ]);
+  const renderer = new T.WebGLRenderer({ antialias: true });
+  renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
+  renderer.shadowMap.enabled = true;
+  renderer.shadowMap.type = T.PCFSoftShadowMap;
+  renderer.setClearColor(0x19241f);
+  $('view').append(renderer.domElement);
+  const scene = new T.Scene();
+  const camera = new T.OrthographicCamera(-5, 5, 4, -4, 0.1, 65);
+  camera.position.set(4.8, 6.4, 12);
+  const controls = new OrbitControls(camera, renderer.domElement);
+  controls.target.set(0, 0.9, 0);
+  controls.enableDamping = true;
+  controls.minZoom = 0.55;
+  controls.maxZoom = 2.8;
+  controls.maxPolarAngle = Math.PI * 0.49;
+  controls.update();
+  scene.add(new T.HemisphereLight(0xfff5df, 0x6b8273, 2.0));
+  const light = new T.DirectionalLight(0xffe6bc, 2.2);
+  light.position.set(-4, 9, 5);
+  light.castShadow = true;
+  Object.assign(light.shadow.camera, { left: -8, right: 8, top: 7, bottom: -7, near: 0.1, far: 24 });
+  light.shadow.mapSize.set(1024, 1024);
+  light.shadow.normalBias = 0.026;
+  scene.add(light);
+
+  const material = (color, metalness = 0.28, roughness = 0.46, extra = {}) =>
+    new T.MeshStandardMaterial({ color, metalness, roughness, ...extra });
+  const board = material(0x33453a, 0.08, 0.85);
+  const edge = material(0x202b25);
+  const mark = material(0x627869, 0.1, 0.85);
+  const metal = material(0x9aafa7, 0.61, 0.32);
+  const graphite = material(0x304039, 0.35);
+  const sprocketMat = material(0x74a69a, 0.43, 0.35);
+  const brass = material(0xc4a177, 0.48, 0.37);
+  const discMat = material(0xc77e57, 0.55, 0.4);
+  const discMark = material(0xe9aa80, 0.45, 0.35);
+  const poleMat = material(0x994e44, 0.27, 0.44);
+  const shell = material(0x668279, 0.27, 0.36, { side: T.DoubleSide });
+  const oilFilm = material(0x70c8b9, 0.08, 0.28, { transparent: true, opacity: 0.56, depthWrite: false, side: T.DoubleSide });
+  const linkMat = material(0x889d91, 0.42, 0.36);
+  const pinMat = material(0xb7c1ae, 0.45, 0.34);
+
+  function mesh(parent, geometry, finish, x = 0, y = 0, z = 0, shadow = true) {
+    const object = new T.Mesh(geometry, finish);
+    object.position.set(x, y, z);
+    object.castShadow = shadow;
+    object.receiveShadow = shadow;
+    parent.add(object);
+    return object;
+  }
+  const box = (g, w, h, d, m, x = 0, y = 0, z = 0) => mesh(g, new T.BoxGeometry(w, h, d), m, x, y, z);
+  const disk = (g, r, h, m, y, x = 0, z = 0, segments = 64) =>
+    mesh(g, new T.CylinderGeometry(r, r, h, segments), m, x, y, z);
+  function annulus(g, inner, outer, y, finish, start = 0, arc = TWO_PI, shadow = true) {
+    const object = mesh(g, new T.RingGeometry(inner, outer, 72, 1, start, arc), finish, 0, y, 0, shadow);
+    object.rotation.x = -Math.PI / 2;
+    return object;
+  }
+  function shellWall(g, r, h, y, angle, arc, finish, shadow = true) {
+    return mesh(g, new T.CylinderGeometry(r, r, h, 72, 1, true, angle, arc), finish, 0, y, 0, shadow);
+  }
+
+  box(scene, 11.6, 0.22, 7.1, edge, 0, -0.27);
+  box(scene, 11.35, 0.17, 6.85, board, 0, -0.08);
+  for (let x = -5; x <= 5; x++) {
+    for (let z = -3; z <= 3; z++) disk(scene, 0.035, 0.009, mark, 0.008, x, z, 10);
+  }
+  for (const x of [-5.34, 5.34]) {
+    for (const z of [-3.14, 3.14]) disk(scene, 0.09, 0.032, metal, 0.025, x, z, 12);
+  }
+
+  const idlerX = -2.82;
+  const loadX = 2.04;
+  const shaft = new T.Group();
+  shaft.position.x = loadX;
+  scene.add(shaft);
+  const rotor = new T.Group();
+  shaft.add(rotor);
+  const idler = new T.Group();
+  idler.position.x = idlerX;
+  scene.add(idler);
+  disk(shaft, 2.15, 0.15, graphite, 0.11);
+  disk(idler, 1.61, 0.14, graphite, 0.11);
+  disk(idler, 0.28, 2.41, metal, 1.3);
+  disk(rotor, 0.24, 2.35, metal, 1.49);
+
+  const teeth = Math.round(TWO_PI * pitch / estimatedChainPitch);
+  const wheelShape = new T.Shape();
+  for (let tooth = 0; tooth < teeth; tooth++) {
+    const vertices = [[0, -0.13], [0.19, 0.09], [0.55, 0.09], [0.74, -0.13]];
+    for (const [fraction, offset] of vertices) {
+      const angle = TWO_PI * (tooth + fraction) / teeth;
+      const x = (pitch + offset) * Math.cos(angle), y = (pitch + offset) * Math.sin(angle);
+      if (tooth === 0 && fraction === 0) wheelShape.moveTo(x, y);
+      else wheelShape.lineTo(x, y);
+    }
+  }
+  wheelShape.closePath();
+  for (let i = 0; i < 4; i++) {
+    const start = i * Math.PI / 2 + 0.18, end = start + 1.18;
+    const hole = new T.Path();
+    hole.absarc(0, 0, pitch * 0.77, end, start, true);
+    hole.absarc(0, 0, pitch * 0.24, start, end, false);
+    hole.closePath();
+    wheelShape.holes.push(hole);
+  }
+  const wheel = new T.ExtrudeGeometry(wheelShape, { depth: 0.105, bevelEnabled: true, bevelSize: 0.026, bevelThickness: 0.022, bevelSegments: 1 });
+  const chainY = 2.12;
+  function gear(parent, y, finish) {
+    const object = mesh(parent, wheel, finish, 0, y + 0.0525, 0);
+    object.rotation.x = Math.PI / 2;
+  }
+  for (const y of [1.78, chainY, 2.46]) gear(rotor, y, sprocketMat);
+  gear(idler, chainY, graphite);
+  disk(rotor, 0.39, 0.116, metal, 2.58, 0, 0, 12);
+  disk(idler, 0.37, 0.115, metal, 2.24, 0, 0, 12);
+  box(rotor, 0.25, 0.029, 0.11, brass, 0.22, 2.65);
+
+  const mechanisms = {};
+  for (const name of Object.keys(sceneText)) {
+    const fixed = new T.Group(), moving = new T.Group();
+    shaft.add(fixed);
+    rotor.add(moving);
+    mechanisms[name] = { fixed, moving };
+  }
+  function clear(group) {
+    for (const child of [...group.children]) {
+      clear(child);
+      child.geometry?.dispose();
+      group.remove(child);
+    }
+  }
+  function oilCutaway(p) {
+    const { fixed, moving } = mechanisms.oil;
+    clear(fixed);
+    clear(moving);
+    const inner = p.innerRadius * units, outer = p.outerRadius * units, thick = p.thickness * units;
+    const gap = p.gap * units, y = 0.87;
+    const top = y + thick / 2 + gap, bottom = y - thick / 2 - gap;
+    const rim = outer + 0.18, start = Math.PI * 0.47, arc = Math.PI * 1.06;
+    disk(fixed, rim, 0.19, shell, bottom - 0.095);
+    disk(fixed, 0.61, bottom - 0.25, graphite, (bottom + 0.25) / 2);
+    shellWall(fixed, rim, top - bottom, (top + bottom) / 2, start, arc, shell);
+    shellWall(fixed, rim - 0.105, top - bottom, (top + bottom) / 2, start, arc, shell);
+    annulus(fixed, 0.31, rim, top + 0.056, shell, start - Math.PI / 2, arc);
+    shellWall(fixed, rim, 0.055, top + 0.028, start, arc, shell);
+    for (const angle of [start, start + arc]) {
+      const cap = box(fixed, 0.116, top - bottom, 0.03, metal,
+        (rim - 0.055) * Math.sin(angle), (top + bottom) / 2, (rim - 0.055) * Math.cos(angle));
+      cap.rotation.y = Math.PI / 2 - angle;
+    }
+    disk(moving, outer, thick, brass, y);
+    for (let i = 0; i < 12; i++) {
+      const angle = i * TWO_PI / 12;
+      const tick = box(moving, 0.2, 0.008, 0.044, graphite,
+        (outer - 0.15) * Math.cos(angle), y + thick / 2 + 0.004, -(outer - 0.15) * Math.sin(angle));
+      tick.rotation.y = angle;
+    }
+    for (const height of [bottom + gap / 2, top - gap / 2]) {
+      annulus(fixed, inner, outer + 0.01, height, oilFilm, 0, TWO_PI, false);
+      shellWall(fixed, outer + 0.012, gap, height, 0, TWO_PI, oilFilm, false);
+    }
+  }
+
+  function eddyCutaway(p) {
+    const { fixed, moving } = mechanisms.eddy;
+    clear(fixed);
+    clear(moving);
+    const y = 0.88, diskRadius = p.diskRadius * units, thick = p.thickness * units;
+    const poleRadius = p.poleRadius * units, offset = p.poleOffset * units;
+    const angle = Math.PI * 0.25;
+    const poleX = offset * Math.cos(angle), poleZ = offset * Math.sin(angle);
+    disk(fixed, 0.61, 0.56, graphite, 0.47);
+    disk(moving, diskRadius, thick, discMat, y);
+    disk(moving, 0.42, 0.098, metal, y + thick / 2 + 0.05);
+    for (let i = 0; i < 18; i++) {
+      const a = i * TWO_PI / 18;
+      const tick = box(moving, 0.27, 0.007, 0.035, discMark,
+        (diskRadius - 0.19) * Math.cos(a), y + thick / 2 + 0.004, -(diskRadius - 0.19) * Math.sin(a));
+      tick.rotation.y = a;
+    }
+    const yokeR = diskRadius + 0.19;
+    const yokeX = yokeR * Math.cos(angle), yokeZ = yokeR * Math.sin(angle);
+    const poleHeight = 0.26, clearance = 0.075;
+    const poleDY = thick / 2 + clearance + poleHeight / 2;
+    box(fixed, 0.44, 1.15, 0.72, shell, yokeX, y, yokeZ).rotation.y = -angle;
+    for (const sign of [-1, 1]) {
+      disk(fixed, poleRadius, poleHeight, poleMat, y + sign * poleDY, poleX, poleZ, 40);
+      const arm = box(fixed, yokeR - offset + 0.65, 0.19, 0.72, shell,
+        (poleX + yokeX) / 2, y + sign * (poleDY + 0.16), (poleZ + yokeZ) / 2);
+      arm.rotation.y = -angle;
+    }
+  }
+
+  const distance = loadX - idlerX;
+  const halfArc = Math.PI * pitch;
+  const chainLength = 2 * (distance + halfArc);
+  const linkCount = Math.round(chainLength / estimatedChainPitch);
+  const linkSpacing = chainLength / linkCount;
+  const linkGeometry = new T.BoxGeometry(linkSpacing * 0.78, 0.105, 0.27);
+  const pinGeometry = new T.CylinderGeometry(0.087, 0.087, 0.15, 10);
+  const chain = new T.InstancedMesh(linkGeometry, linkMat, linkCount);
+  const pins = new T.InstancedMesh(pinGeometry, pinMat, linkCount);
+  chain.castShadow = pins.castShadow = true;
+  chain.frustumCulled = pins.frustumCulled = false;
+  scene.add(chain, pins);
+  const pose = new T.Object3D();
+  function chainPose(s) {
+    if (s < distance) return { x: idlerX + s, z: pitch, heading: 0 };
+    s -= distance;
+    if (s < halfArc) {
+      const angle = s / pitch;
+      return { x: loadX + pitch * Math.sin(angle), z: pitch * Math.cos(angle), heading: angle };
+    }
+    s -= halfArc;
+    if (s < distance) return { x: loadX - s, z: -pitch, heading: Math.PI };
+    const angle = Math.PI + (s - distance) / pitch;
+    return { x: idlerX + pitch * Math.sin(angle), z: pitch * Math.cos(angle), heading: angle };
+  }
+  function moveChain(angle) {
+    const travel = ((angle * pitch) % chainLength + chainLength) % chainLength;
+    for (let i = 0; i < linkCount; i++) {
+      const { x, z, heading } = chainPose((i * linkSpacing + travel) % chainLength);
+      pose.position.set(x, chainY, z);
+      pose.rotation.y = heading;
+      pose.updateMatrix();
+      chain.setMatrixAt(i, pose.matrix);
+      pose.position.y += 0.018;
+      pose.updateMatrix();
+      pins.setMatrixAt(i, pose.matrix);
+    }
+    chain.instanceMatrix.needsUpdate = pins.instanceMatrix.needsUpdate = true;
+  }
+
+  const canvas = $('scope');
+  const ctx = canvas.getContext('2d');
+  if (!ctx) throw Error('Plot canvas initialization failed');
+  let kind = 'oil';
+  let model, idealR;
+  let paused = false, carry = 0, last = 0, phase = 0, sampleIndex = 0;
+  let trace = [];
+  const drive = { middle: { torque: 0 } };
+
+  function selectGroup(name, labels) {
+    const group = document.createElement('optgroup');
+    group.label = name;
+    for (const label of labels) group.append(new Option(`${label} spin Ω`, label));
+    $('resistor').append(group);
+  }
+  selectGroup('Kit values', KIT_LABELS);
+  selectGroup('Simulator labels', SIM_LABELS.filter(label => !KIT_LABELS.includes(label)));
+  selectGroup('Science guide endpoint', [SCIENCE_MAX_LABEL]);
+  $('resistor').value = '50';
+
+  function syncDrive() {
+    const sine = $('wave').value === 'sine';
+    const torque = $('source').value === 'torque';
+    const level = $('level');
+    level.min = sine ? 0 : -100;
+    $('frequency-row').hidden = !sine;
+    const quantity = torque ? 'Voltage' : 'Chain speed';
+    $('drive-label').textContent = sine ? `${quantity} amplitude` : quantity;
+    $('level-value').textContent = torque
+      ? `${(input('level') * 0.06).toFixed(2)} spin V`
+      : `${(input('level') * 0.6 / idealR).toFixed(3)} m/s`;
+    $('frequency-value').textContent = `${input('frequency').toFixed(2)} Hz`;
+  }
+  function updateReadings() {
+    const { voltage, current } = model.ports.middle;
+    $('volts').textContent = `${(voltage * scale).toFixed(2)} spin V`;
+    $('amps').textContent = `${(1000 * current / scale).toFixed(1)} mspin A`;
+    $('clock').textContent = `${model.state.time.toFixed(2)} s`;
+  }
+  function reset(rebuild = true) {
+    const common = { kind, shaftMass: input('mass') / 1000 };
+    const label = input('resistor');
+    model = create(kind === 'oil' ? { ...common, label, gap: input('gap') / 1000,
+      exponent: input('exponent'), lambda: input('lambda') / 1000 } : { ...common, field: input('field') });
+    idealR = kind === 'oil' ? label : 50;
+    $('ideal-label').textContent = `Ideal ${idealR} spin Ω`;
+    $('calibration').textContent = kind === 'oil'
+      ? `Estimated oil model, scaled to the label at ${model.properties.referenceSpinV} spin V.`
+      : `Estimated low-speed design · ${(model.properties.coefficient * (scale / radius) ** 2).toFixed(2)} spin Ω at DC.`;
+    for (const [id, unit, digits] of [['gap', ' mm', 2], ['lambda', ' ms', 1], ['exponent', '', 2],
+      ['field', ' T', 2], ['mass', ' g', 1]]) $(id + '-value').textContent = input(id).toFixed(digits) + unit;
+    if (rebuild) {
+      if (kind === 'oil') oilCutaway(model.properties);
+      else eddyCutaway(model.properties);
+    }
+    carry = phase = sampleIndex = 0;
+    trace = [];
+    rotor.rotation.y = idler.rotation.y = 0;
+    moveChain(0);
+    syncDrive();
+    updateReadings();
+  }
+  function setMechanism(name) {
+    kind = name;
+    for (const [id, { fixed, moving }] of Object.entries(mechanisms)) {
+      fixed.visible = moving.visible = id === kind;
+      $(id).setAttribute('aria-pressed', String(id === kind));
+      $(id + '-settings').hidden = id !== kind;
+    }
+    const [title, description, keys] = sceneText[kind];
+    $('scene-title').textContent = title;
+    $('scene-description').textContent = description;
+    $('scene-key').replaceChildren(...keys.map(([text, color]) => {
+      const label = document.createElement('span');
+      const dot = document.createElement('i');
+      dot.style.setProperty('--swatch', color);
+      label.append(dot, text);
+      return label;
+    }));
+    reset();
+  }
+
+  function advance() {
+    const sine = $('wave').value === 'sine';
+    const torque = $('source').value === 'torque';
+    const frequency = input('frequency');
+    const level = input('level') / 100;
+    const phaseAdvance = TWO_PI * frequency * dt;
+    const memory = sine ? 2.25 / frequency : 2;
+    const span = Math.max(20, Math.ceil(memory * 120));
+    while (carry >= dt) {
+      if (sine) phase = (phase + phaseAdvance) % TWO_PI;
+      const amplitude = level * (sine ? Math.sin(phase) : 1);
+      drive.middle = torque ? { torque: 6 * amplitude * radius / scale }
+        : { speed: 6 * amplitude * scale / (idealR * radius) };
+      const port = model.step(dt, drive).middle;
+      carry -= dt;
+      if (++sampleIndex % 40 === 0) trace.push([port.current / scale * 1000, port.voltage * scale]);
+    }
+    if (trace.length > span) trace.splice(0, trace.length - span);
+    const angle = model.state.angle % TWO_PI;
+    rotor.rotation.y = idler.rotation.y = angle;
+    moveChain(model.state.angle);
+    updateReadings();
+  }
+
+  function plot() {
+    const w = canvas.clientWidth, h = canvas.clientHeight;
+    const ratio = Math.min(window.devicePixelRatio, 2);
+    const width = Math.round(w * ratio), height = Math.round(h * ratio);
+    if (canvas.width !== width || canvas.height !== height) {
+      canvas.width = width;
+      canvas.height = height;
+    }
+    ctx.setTransform(ratio, 0, 0, ratio, 0, 0);
+    ctx.clearRect(0, 0, w, h);
+    const left = 31, right = w - 13, top = 15, bottom = h - 26;
+    const limitFor = (n, tick) => Math.ceil(n * 1.075 / tick) * tick;
+    let maxV = Math.max(0.5, Math.abs(input('level')) * 0.06), maxI = 1000 * maxV / idealR;
+    for (const [i, v] of trace) {
+      maxI = Math.max(maxI, Math.abs(i));
+      maxV = Math.max(maxV, Math.abs(v));
+    }
+    maxV = limitFor(maxV, maxV > 2 ? 1 : 0.25);
+    maxI = limitFor(maxI, maxI > 12 ? 5 : maxI > 3 ? 1 : 0.25);
+    const x = value => left + ((value / maxI + 1) / 2) * (right - left);
+    const y = value => bottom - ((value / maxV + 1) / 2) * (bottom - top);
+    const segment = (x1, y1, x2, y2) => {
+      ctx.beginPath(); ctx.moveTo(x1, y1); ctx.lineTo(x2, y2); ctx.stroke();
+    };
+    ctx.lineWidth = 1;
+    for (let line = -2; line <= 2; line++) {
+      ctx.strokeStyle = line === 0 ? '#6a8172' : '#30433a';
+      const xx = x(maxI * line / 2), yy = y(maxV * line / 2);
+      segment(xx, top, xx, bottom);
+      segment(left, yy, right, yy);
+    }
+    ctx.font = '10px ui-monospace, monospace';
+    ctx.fillStyle = '#a6b2a8';
+    const format = value => Number(value.toFixed(2)).toString();
+    ctx.textAlign = 'right';
+    ctx.fillText(format(maxV), left - 5, top + 4);
+    ctx.fillText('0', left - 5, y(0) + 4);
+    ctx.fillText(format(-maxV), left - 5, bottom + 4);
+    ctx.textAlign = 'left';
+    ctx.fillText('spin V', left, 11);
+    ctx.fillText(format(-maxI), left, bottom + 13);
+    ctx.textAlign = 'center';
+    ctx.fillText('0', x(0), bottom + 13);
+    ctx.textAlign = 'right';
+    ctx.fillText(format(maxI), right, bottom + 13);
+    ctx.fillText('mspin A', right, h - 3);
+
+    const end = Math.min(maxI, 1000 * maxV / idealR);
+    ctx.strokeStyle = '#d9ab76';
+    ctx.setLineDash([4, 4]);
+    segment(x(-end), y(-end * idealR / 1000), x(end), y(end * idealR / 1000));
+    ctx.setLineDash([]);
+    ctx.strokeStyle = '#9bdfab';
+    ctx.lineWidth = 1.65;
+    ctx.beginPath();
+    for (const [i, [current, voltage]] of trace.entries()) {
+      if (i === 0) ctx.moveTo(x(current), y(voltage));
+      else ctx.lineTo(x(current), y(voltage));
+    }
+    ctx.stroke();
+    if (trace.length) {
+      const [i, v] = trace.at(-1);
+      ctx.beginPath(); ctx.arc(x(i), y(v), 3, 0, TWO_PI);
+      ctx.fillStyle = '#d0f1d4'; ctx.fill();
+    }
+  }
+
+  function resize() {
+    const { clientWidth: w, clientHeight: h } = $('view');
+    const aspect = w / h;
+    const halfHeight = Math.max(3.72, 6.1 / aspect);
+    Object.assign(camera, { left: -halfHeight * aspect, right: halfHeight * aspect, top: halfHeight, bottom: -halfHeight });
+    camera.updateProjectionMatrix();
+    renderer.setSize(w, h, false);
+  }
+  new ResizeObserver(resize).observe($('view'));
+  resize();
+  setMechanism('oil');
+  for (const name of Object.keys(mechanisms)) $(name).onclick = () => setMechanism(name);
+  for (const name of ['resistor', 'gap', 'exponent', 'lambda', 'field', 'mass']) $(name).oninput = () => reset(name === 'gap');
+  for (const name of ['source', 'wave']) $(name).onchange = () => reset(false);
+  for (const name of ['level', 'frequency']) $(name).oninput = () => { trace = []; syncDrive(); };
+  $('reset').onclick = () => reset(false);
+  $('pause').onclick = () => {
+    paused = !paused;
+    $('pause').textContent = paused ? 'Resume' : 'Pause';
+    $('pause').setAttribute('aria-pressed', String(paused));
+  };
+
+  function frame(now) {
+    try {
+      if (last && !paused) {
+        carry += Math.min((now - last) / 1000, 0.10);
+        advance();
+      }
+      last = now;
+      controls.update();
+      renderer.render(scene, camera);
+      plot();
+      requestAnimationFrame(frame);
+    } catch (error) {
+      fail(error);
+    }
+  }
+  requestAnimationFrame(frame);
+}
+
+boot().catch(fail);
+</script>
+</body>
+</html>

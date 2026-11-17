@@ -1,0 +1,527 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<meta name="color-scheme" content="dark">
+<title>Spintronics · Planetary Junction</title>
+<script type="importmap">
+{
+  "imports": {
+    "three": "https://cdn.jsdelivr.net/npm/three@0.160.0/build/three.module.js",
+    "three/addons/": "https://cdn.jsdelivr.net/npm/three@0.160.0/examples/jsm/"
+  }
+}
+</script>
+<style>
+:root{font:14px system-ui,sans-serif;color:#e8ece5;background:#111916;--muted:#a6b2a8;--line:#37433a;--panel:#1a241e;--green:#9bdfab;--amber:#ffc37b}
+*{box-sizing:border-box}
+body{margin:0}
+h1,h2,p{margin:0}
+button,select,input{font:inherit}
+button,select{border:1px solid #4a5950;border-radius:6px;background:#222f28;color:inherit;padding:7px 10px}
+button{cursor:pointer}
+button:focus-visible,select:focus-visible,input:focus-visible{outline:2px solid var(--green);outline-offset:3px}
+button:hover,select:hover{border-color:var(--green)}
+main{max-width:1530px;margin:auto;padding:22px clamp(15px,3vw,45px)}
+header{display:flex;align-items:end;justify-content:space-between;gap:16px;flex-wrap:wrap;margin-bottom:20px}
+.kicker,.small{font:600 10px ui-monospace,monospace;letter-spacing:.11em;text-transform:uppercase;color:var(--muted)}
+.kicker{margin-bottom:8px;color:var(--green)}
+h1{font-size:clamp(29px,4vw,48px);font-weight:630;letter-spacing:-.055em;line-height:1}
+.toolbar{display:flex;gap:8px}
+#pause{min-width:78px;background:#b0e7ba;color:#14291c;border-color:#b0e7ba;font-weight:700}
+.bench{display:grid;grid-template-columns:minmax(0,1fr) clamp(305px,30%,355px);border:1px solid var(--line);border-radius:13px;overflow:hidden}
+.viewport{position:relative;min-height:725px;isolation:isolate;background:#19241f}
+#view{position:absolute;inset:0}
+#view canvas{display:block;width:100%;height:100%;touch-action:none}
+.overlay{position:absolute;z-index:1;left:20px;right:20px;display:flex;justify-content:space-between;gap:12px;pointer-events:none}
+.scene-head{top:18px;align-items:start}
+.scene-foot{bottom:15px;align-items:end;color:var(--muted);font-size:11px}
+.scene-head h2{font-size:18px;font-weight:650;letter-spacing:-.025em}
+.scene-head p{font-size:12px;color:var(--muted);margin-top:4px}
+#clock,#residual{font:12px ui-monospace,monospace;text-align:right;color:var(--green)}
+#status{position:absolute;z-index:2;inset:70px 20px auto;padding:12px;background:#332a20;color:var(--amber);border-radius:6px}
+aside{min-width:0;background:var(--panel);border-left:1px solid var(--line)}
+.panel{padding:13px 15px;border-bottom:1px solid var(--line)}
+.panel:last-child{border-bottom:0}
+.panel h2{font-size:15px;font-weight:650}
+.row{display:flex;justify-content:space-between;align-items:center;gap:8px}
+.row select{font-size:11px;padding:4px 7px}
+#scope{display:block;width:100%;height:135px;margin:8px 0;background:#121c17;border:1px solid #33443a;border-radius:6px}
+table{width:100%;border-collapse:collapse;text-align:right;line-height:1.65}
+th:first-child{text-align:left}
+thead th{font-size:11px;font-weight:600;color:var(--muted)}
+tbody th{font-size:11px;font-weight:550;text-align:left}
+td{font:11px ui-monospace,monospace}
+.tension{color:var(--amber)}
+.speed{color:var(--green)}
+.chip{display:inline-block;width:8px;height:8px;margin-right:6px;border-radius:2px;background:var(--chip)}
+.contact{margin-top:6px;color:var(--muted);font:10px ui-monospace,monospace}
+.param{display:grid;grid-template-columns:1fr auto;gap:2px 8px;align-items:center;margin-top:6px;color:#c5cec5;font-size:11px}
+.param output{font:11px ui-monospace,monospace;color:#e8ece5}
+.param input{width:100%;grid-column:1/-1;margin:0;accent-color:var(--green)}
+[hidden]{display:none!important}
+@media(max-width:820px){.bench{grid-template-columns:1fr}.viewport{min-height:clamp(380px,75vw,605px)}aside{display:grid;grid-template-columns:1fr 1fr;border:0;border-top:1px solid var(--line)}.panel:last-child{grid-column:2}.panel:first-child{grid-row:span 2;border-right:1px solid var(--line);border-bottom:0}}
+@media(max-width:550px){aside{display:block}.panel:first-child{border-right:0;border-bottom:1px solid var(--line)}.overlay{left:10px;right:10px}.scene-head{top:10px}.scene-foot{bottom:10px}.scene-foot p{max-width:15ch}}
+</style>
+</head>
+<body>
+<main>
+  <header>
+    <div><p class="kicker">Spintronics · Mechanism bench</p><h1>Planetary junction</h1></div>
+    <div class="toolbar">
+      <button id="reset" type="button">Reset</button>
+      <button id="pause" type="button" aria-pressed="false">Pause</button>
+    </div>
+  </header>
+  <section class="bench" aria-label="Planetary junction bench">
+    <div class="viewport">
+      <div id="view" aria-label="Interactive planetary gear cutaway"></div>
+      <div class="overlay scene-head">
+        <div><h2>Planetary gearset</h2><p>Exposed mesh · enlarged internal gears</p></div>
+        <output id="clock" aria-label="Simulation time">0.00 s</output>
+      </div>
+      <div class="overlay scene-foot">
+        <p>Drag to orbit · Scroll to zoom</p>
+        <output id="residual" aria-label="Bottom minus middle minus top current"></output>
+      </div>
+      <div id="status" role="alert" hidden></div>
+    </div>
+    <aside>
+      <section class="panel" aria-labelledby="scope-title">
+        <div class="row"><h2 id="scope-title">V–I scope</h2>
+          <select id="probe" aria-label="Scope port"><option value="bottom">Bottom</option><option value="middle">Middle</option><option value="top">Top</option></select>
+        </div>
+        <canvas id="scope" aria-label="Voltage versus current trajectory for the selected port"></canvas>
+        <table>
+          <thead><tr><th scope="col">Sprocket</th><th scope="col" class="tension">V · N</th><th scope="col" class="speed">I · m/s</th></tr></thead>
+          <tbody>
+            <tr><th scope="row"><i class="chip" style="--chip:#a9b289"></i>Bottom · carrier</th><td id="bottom-v"></td><td id="bottom-i"></td></tr>
+            <tr><th scope="row"><i class="chip" style="--chip:#82b7a6"></i>Middle · ring</th><td id="middle-v"></td><td id="middle-i"></td></tr>
+            <tr><th scope="row"><i class="chip" style="--chip:#dca85e"></i>Top · sun</th><td id="top-v"></td><td id="top-i"></td></tr>
+          </tbody>
+        </table>
+        <div id="flanks" class="contact" aria-label="Loaded tooth flanks"></div>
+      </section>
+      <section class="panel" aria-labelledby="drive-title">
+        <div class="row"><h2 id="drive-title">Drive</h2>
+          <select id="mode" aria-label="Bottom drive mode"><option value="speed">Bottom speed</option><option value="torque">Bottom torque</option></select>
+        </div>
+        <div id="drive-settings"></div>
+      </section>
+      <section class="panel" aria-labelledby="parameters-title">
+        <div class="row"><h2 id="parameters-title">Parameters</h2><span class="small">Estimates</span></div>
+        <div id="parameters"></div>
+      </section>
+    </aside>
+  </section>
+</main>
+<script type="module">
+const $ = id => document.getElementById(id);
+const TAU = 2 * Math.PI;
+
+function showError(error) {
+  $('status').textContent = 'Simulator error · ' + error.message;
+  $('status').hidden = false;
+  console.error(error);
+}
+
+async function boot() {
+  const [T, {OrbitControls}, {create, defaults, geometry, radii, portNames}] = await Promise.all([
+    import('three'), import('three/addons/controls/OrbitControls.js'), import('./model.js'),
+  ]);
+  const host = $('view');
+  const renderer = new T.WebGLRenderer({antialias: true});
+  renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
+  renderer.shadowMap.enabled = true;
+  renderer.shadowMap.type = T.PCFSoftShadowMap;
+  renderer.setClearColor(0x19241f);
+  host.append(renderer.domElement);
+
+  const scene = new T.Scene();
+  const camera = new T.OrthographicCamera(-6, 6, 5, -5, 0.1, 60);
+  camera.position.set(9.3, 13.8, 13.4);
+  const controls = new OrbitControls(camera, renderer.domElement);
+  controls.target.set(0, 1.58, 0);
+  controls.enableDamping = true;
+  controls.minZoom = 0.65;
+  controls.maxZoom = 3.5;
+  controls.maxPolarAngle = Math.PI * 0.48;
+  scene.add(new T.HemisphereLight(0xfff5df, 0x6b8273, 2.0));
+  const key = new T.DirectionalLight(0xffe6bc, 2.35);
+  key.position.set(-5, 12, 6);
+  key.castShadow = true;
+  Object.assign(key.shadow.camera, {left: -8, right: 8, top: 8, bottom: -8, far: 35});
+  key.shadow.mapSize.set(1024, 1024);
+  key.shadow.normalBias = 0.027;
+  scene.add(key);
+
+  const finish = (color, metalness = 0.35, roughness = 0.45) =>
+    new T.MeshStandardMaterial({color, metalness, roughness});
+  const carrierMat = finish(0xa9b289, 0.46);
+  const ringMat = finish(0x82b7a6, 0.54);
+  const sunMat = finish(0xdca85e, 0.57);
+  const planetMat = finish(0xd5bc94, 0.49);
+  const steel = finish(0x9bafa9, 0.67);
+  const edge = finish(0x202b25, 0.22, 0.68);
+  const board = finish(0x33453a, 0.08, 0.85);
+  const trim = finish(0x677863, 0.36, 0.64);
+  const pigment = finish(0xe8e7cc, 0.12);
+  const glass = new T.MeshStandardMaterial({
+    color: 0xa4d8c6, transparent: true, opacity: 0.22, side: T.DoubleSide, depthWrite: false,
+  });
+
+  function mesh(parent, shape, material, x = 0, y = 0, z = 0) {
+    const result = new T.Mesh(shape, material);
+    result.position.set(x, y, z);
+    result.castShadow = !material.transparent;
+    result.receiveShadow = !material.transparent;
+    parent.add(result);
+    return result;
+  }
+  const box = (group, w, h, d, material, x, y, z) =>
+    mesh(group, new T.BoxGeometry(w, h, d), material, x, y, z);
+  const cylinder = (group, radius, height, material, x, y, z, n = 64) =>
+    mesh(group, new T.CylinderGeometry(radius, radius, height, n), material, x, y, z);
+  function group(parent, y = 0) {
+    const result = new T.Group();
+    result.position.y = y;
+    parent.add(result);
+    return result;
+  }
+  function plate(parent, outline, depth, material) {
+    const shape = new T.ExtrudeGeometry(outline, {depth, bevelEnabled: false, curveSegments: 48});
+    shape.rotateX(-Math.PI / 2);
+    shape.translate(0, -depth / 2, 0);
+    return mesh(parent, shape, material);
+  }
+  function circle(path, radius) {
+    path.absarc(0, 0, radius, 0, TAU, false);
+    return path;
+  }
+  function teeth(path, pitch, count, internal = false) {
+    const direction = internal ? -1 : 1;
+    const module = 2 * pitch / count;
+    // Schematic tooth profiles with pitch crossings at a quarter of a tooth interval.
+    const profile = [[0, 0.65], [0.16, 0.65], [0.34, -0.9], [0.66, -0.9], [0.84, 0.65]];
+    for (let i = 0; i < count; i++) for (const [fraction, height] of profile) {
+      const angle = TAU * (i + fraction) / count;
+      const radius = pitch + direction * height * module;
+      path[i === 0 && fraction === 0 ? 'moveTo' : 'lineTo'](Math.cos(angle) * radius, Math.sin(angle) * radius);
+    }
+    path.closePath();
+    return path;
+  }
+  function annulus(parent, outer, inner, depth, material) {
+    const outline = circle(new T.Shape(), outer);
+    outline.holes.push(circle(new T.Path(), inner));
+    return plate(parent, outline, depth, material);
+  }
+  function radial(parent, radius, angle, y = 0) {
+    const anchor = group(parent, y);
+    anchor.rotation.y = angle;
+    const tip = group(anchor);
+    tip.position.x = radius;
+    return tip;
+  }
+  function partialRim(parent, radius, thickness, y, material) {
+    const arc = Math.PI * 1.12;
+    const start = Math.PI * 0.7;
+    const band = group(parent, y);
+    const shape = new T.CylinderGeometry(radius, radius, thickness, 80, 1, true, start, arc);
+    mesh(band, shape, material);
+    for (const dy of [-thickness / 2, thickness / 2]) {
+      const lip = new T.TorusGeometry(radius, 0.035, 8, 70, arc);
+      lip.rotateZ(start - Math.PI / 2);
+      lip.rotateX(-Math.PI / 2);
+      mesh(band, lip, steel, 0, dy);
+    }
+  }
+
+  const base = group(scene);
+  box(base, 10.25, 0.25, 10.25, edge, 0, -0.19, 0);
+  box(base, 10.08, 0.14, 10.08, board, 0, -0.055, 0);
+  for (const a of [-1, 1]) {
+    box(base, 9.76, 0.022, 0.055, trim, 0, 0.022, 4.92 * a);
+    box(base, 0.055, 0.022, 9.76, trim, 4.92 * a, 0.022, 0);
+    for (const b of [-1, 1]) {
+      cylinder(base, 0.11, 0.042, steel, a * 4.72, 0.035, b * 4.72, 12);
+      box(base, 0.12, 0.009, 0.026, edge, a * 4.72, 0.061, b * 4.72).rotation.y = a * b * 0.6;
+    }
+  }
+  const dots = new T.InstancedMesh(new T.CircleGeometry(0.019, 6).rotateX(-Math.PI / 2), trim, 27 ** 2);
+  let dotIndex = 0;
+  const transform = new T.Matrix4();
+  for (let x = -13; x <= 13; x++) for (let z = -13; z <= 13; z++) {
+    dots.setMatrixAt(dotIndex++, transform.makeTranslation(x * 0.36, 0.020, z * 0.36));
+  }
+  base.add(dots);
+  cylinder(base, 0.64, 0.4, edge, 0, 0.24, 0, 12);
+
+  function sprocket(radius, y, count, material) {
+    const rotor = group(scene, y);
+    const outline = teeth(new T.Shape(), radius, count);
+    outline.holes.push(circle(new T.Path(), radius * 0.79));
+    plate(rotor, outline, 0.16, material);
+    annulus(rotor, radius * 0.92, radius * 0.83, 0.035, steel).position.y = 0.10;
+    for (let i = 0; i < 5; i++) {
+      const spoke = group(rotor);
+      spoke.rotation.y = TAU * i / 5;
+      box(spoke, radius * 0.79, 0.105, 0.16, material, radius * 0.45, 0, 0);
+    }
+    cylinder(rotor, radius * 0.17, 0.22, material);
+    cylinder(rotor, 0.046, 0.025, pigment, radius * 0.88, 0.127, 0, 12);
+    return rotor;
+  }
+  const bottom = sprocket(135 * radii.bottom, 0.57, 33, carrierMat);
+  const middle = sprocket(135 * radii.middle, 1.12, 22, ringMat);
+  const top = sprocket(135 * radii.top, 1.67, 11, sunMat);
+  cylinder(bottom, 0.45, 0.44, carrierMat, 0, 0.26, 0);
+  cylinder(middle, 0.33, 0.44, ringMat, 0, 0.26, 0);
+  cylinder(top, 0.19, 0.66, sunMat, 0, 0.32, 0);
+
+  const zoom = 250;
+  const pitch = zoom * geometry.ringRadius;
+  const orbit = zoom * geometry.orbit;
+  const ringPhase = Math.PI / geometry.ringTeeth;
+  const sunPhase = Math.PI / geometry.sunTeeth;
+  const carrier = group(scene, 2.18);
+  cylinder(carrier, 0.78, 0.23, carrierMat, 0, -0.17, 0, 24);
+  const planets = [];
+  for (let i = 0; i < geometry.nPlanets; i++) {
+    const angle = TAU * i / geometry.nPlanets;
+    const arm = group(carrier);
+    arm.rotation.y = angle;
+    box(arm, orbit, 0.16, 0.37, carrierMat, orbit / 2, -0.18, 0);
+    cylinder(arm, 0.31, 0.19, carrierMat, orbit, -0.16, 0, 20);
+    cylinder(arm, 0.15, 0.43, steel, orbit, 0.0, 0);
+    const planet = group(carrier, 0.035);
+    planet.position.set(orbit * Math.cos(angle), 0.035, -orbit * Math.sin(angle));
+    const outline = teeth(new T.Shape(), zoom * geometry.planetRadius, geometry.planetTeeth);
+    outline.holes.push(circle(new T.Path(), 0.159));
+    plate(planet, outline, 0.24, planetMat);
+    annulus(planet, 0.46, 0.2, 0.024, sunMat).position.y = 0.135;
+    cylinder(planet, 0.060, 0.027, edge, 0.50, 0.147, 0, 12);
+    planets.push(planet);
+  }
+  const sun = group(scene, 2.215);
+  plate(sun, teeth(new T.Shape(), zoom * geometry.sunRadius, geometry.sunTeeth), 0.24, sunMat);
+  cylinder(sun, 0.35, 0.17, steel, 0, 0.17, 0, 12);
+  for (let i = 0; i < 4; i++) cylinder(radial(sun, 0.92, TAU * i / 4), 0.085, 0.035, edge, 0, 0.134, 0, 12);
+  cylinder(sun, 0.06, 0.033, pigment, 1.21, 0.136, 0, 12);
+  const ring = group(scene, 2.215);
+  const ringShape = circle(new T.Shape(), pitch + 0.28);
+  ringShape.holes.push(teeth(new T.Path(), pitch, geometry.ringTeeth, true));
+  plate(ring, ringShape, 0.24, ringMat);
+  annulus(ring, pitch + 0.28, pitch + 0.16, 0.035, steel).position.y = 0.13;
+  cylinder(ring, 0.06, 0.03, pigment, pitch + 0.12, 0.146, 0, 12);
+  partialRim(scene, pitch + 0.47, 0.68, 2.26, glass);
+
+  const settings = {};
+  function slider(parent, id, label, value, min, max, step, unit, digits, onInput) {
+    const row = document.createElement('label');
+    row.className = 'param';
+    row.append(label);
+    const amount = document.createElement('output');
+    const range = document.createElement('input');
+    Object.assign(range, {type: 'range', id, value, min, max, step});
+    range.setAttribute('aria-label', label);
+    amount.setAttribute('for', id);
+    const read = () => {
+      settings[id] = range.valueAsNumber;
+      amount.textContent = settings[id].toFixed(digits) + unit;
+    };
+    read();
+    range.addEventListener('input', () => {
+      try {
+        read();
+        onInput?.();
+      } catch (error) {
+        showError(error);
+      }
+    });
+    row.append(amount, range);
+    parent.append(row);
+  }
+
+  const h = defaults.fixedStep;
+  let model;
+  let accumulated = 0;
+  let phase = 0;
+  let sampleTick = 0;
+  let paused = false;
+  const trace = [];
+  const mode = $('mode');
+  const probe = $('probe');
+  const driveSettings = $('drive-settings');
+  const speedSettings = document.createElement('div');
+  const torqueSettings = document.createElement('div');
+  driveSettings.append(speedSettings, torqueSettings);
+  slider(speedSettings, 'speedBias', 'Bottom current bias', 0.09, -0.2, 0.2, 0.005, ' m/s', 3);
+  slider(speedSettings, 'speedAmp', 'Bottom current amplitude', 0.08, 0, 0.24, 0.005, ' m/s', 3);
+  slider(torqueSettings, 'torqueBias', 'Bottom voltage bias', 0.145, -0.3, 0.3, 0.005, ' N', 3);
+  slider(torqueSettings, 'torqueAmp', 'Bottom voltage amplitude', 0.09, 0, 0.28, 0.005, ' N', 3);
+  slider(driveSettings, 'frequency', 'Frequency', 0.75, 0.1, 5, 0.05, ' Hz', 2);
+  slider(driveSettings, 'split', 'Middle speed', 0.034, -0.15, 0.15, 0.002, ' m/s', 3);
+  slider(driveSettings, 'load', 'Top load voltage', 0.14, -0.2, 0.3, 0.005, ' N', 3);
+
+  const parameters = $('parameters');
+  slider(parameters, 'backlash', 'Mesh half-clearance', defaults.backlash * 1e6, 0, 450, 5, ' µm', 0, reset);
+  slider(parameters, 'stiffness', 'Mesh stiffness', defaults.meshStiffness / 1000, 5, 80, 1, ' kN/m', 0, reset);
+  slider(parameters, 'damping', 'Mesh damping', defaults.meshDamping, 0, 3, 0.05, ' N s/m', 2, reset);
+  slider(parameters, 'friction', 'Mesh sliding drag', 1, 0, 3, 0.05, '×', 2, reset);
+  slider(parameters, 'inertia', 'Gear inertia', 1, 0.25, 4, 0.05, '×', 2, reset);
+
+  function reset() {
+    const scale = settings.inertia;
+    model = create({
+      backlash: settings.backlash / 1e6, meshStiffness: settings.stiffness * 1000,
+      meshDamping: settings.damping, meshFriction: defaults.meshFriction * settings.friction,
+      carrierInertia: scale * defaults.carrierInertia, ringInertia: scale * defaults.ringInertia,
+      sunInertia: scale * defaults.sunInertia, planetInertia: scale * defaults.planetInertia,
+      planetMass: scale * defaults.planetMass,
+    });
+    accumulated = phase = sampleTick = trace.length = 0;
+    updateReadings();
+  }
+
+  function setMode() {
+    speedSettings.hidden = mode.value !== 'speed';
+    torqueSettings.hidden = !speedSettings.hidden;
+    trace.length = 0;
+  }
+  mode.addEventListener('change', setMode);
+  probe.addEventListener('change', () => { trace.length = 0; });
+  $('reset').addEventListener('click', reset);
+  $('pause').addEventListener('click', () => {
+    paused = !paused;
+    $('pause').textContent = paused ? 'Resume' : 'Pause';
+    $('pause').setAttribute('aria-pressed', String(paused));
+  });
+
+  function tick() {
+    const {frequency, speedBias, speedAmp, torqueBias, torqueAmp, split, load} = settings;
+    phase = (phase + TAU * frequency * h) % TAU;
+    const wave = Math.sin(phase);
+    const bottom = mode.value === 'speed'
+      ? {speed: (speedBias + speedAmp * wave) / radii.bottom}
+      : {torque: (torqueBias + torqueAmp * wave) * radii.bottom};
+    model.step(h, {bottom, middle: {speed: split / radii.middle}, top: {torque: -load * radii.top}});
+    if (++sampleTick % 80 === 0) {
+      const port = probe.value;
+      const {current, voltage} = model.ports[port];
+      trace.push([current, (port === 'bottom' ? 1 : -1) * voltage]);
+      if (trace.length > 450) trace.shift();
+    }
+  }
+
+  function updateReadings() {
+    const {state, ports} = model;
+    $('clock').textContent = state.time.toFixed(2) + ' s';
+    $('residual').textContent = 'Iᵦ − Iₘ − Iₜ  ' + state.currentResidual.toExponential(2) + ' m/s';
+    for (const port of portNames) {
+      const {current, voltage} = ports[port];
+      $(port + '-v').textContent = ((port === 'bottom' ? 1 : -1) * voltage).toFixed(4);
+      $(port + '-i').textContent = current.toFixed(4);
+    }
+    const flank = value => value === 0 ? 'free' : value > 0 ? '+ flank' : '− flank';
+    $('flanks').textContent = 'Sun mesh  ' + flank(state.mesh.sun.flank) + '   ·   Ring mesh  ' + flank(state.mesh.ring.flank);
+    const angles = state.angle;
+    bottom.rotation.y = carrier.rotation.y = angles.bottom;
+    middle.rotation.y = angles.middle;
+    top.rotation.y = angles.top;
+    ring.rotation.y = angles.middle + ringPhase;
+    sun.rotation.y = angles.top + sunPhase;
+    for (const planet of planets) planet.rotation.y = angles.planet - angles.bottom;
+  }
+
+  const scope = $('scope');
+  const ctx = scope.getContext('2d');
+  if (!ctx) throw new Error('2D canvas unavailable');
+  function drawScope() {
+    const {clientWidth: w, clientHeight: height} = scope;
+    const scale = renderer.getPixelRatio();
+    if (scope.width !== Math.round(w * scale) || scope.height !== Math.round(height * scale)) {
+      scope.width = Math.round(w * scale);
+      scope.height = Math.round(height * scale);
+    }
+    ctx.setTransform(scale, 0, 0, scale, 0, 0);
+    ctx.clearRect(0, 0, w, height);
+    const x0 = 38, x1 = w - 10, y0 = 16, y1 = height - 20;
+    const span = (axis, min) => trace.reduce((extent, point) => Math.max(extent, 1.08 * Math.abs(point[axis])), min);
+    const xMax = span(0, 0.05);
+    const yMax = span(1, 0.02);
+    const x = i => x0 + (0.5 + i / (2 * xMax)) * (x1 - x0);
+    const y = v => y0 + (0.5 - v / (2 * yMax)) * (y1 - y0);
+    ctx.font = '10px ui-monospace, monospace';
+    ctx.strokeStyle = '#314438';
+    ctx.lineWidth = 1;
+    ctx.strokeRect(x0, y0, x1 - x0, y1 - y0);
+    ctx.beginPath();
+    ctx.moveTo(x(0), y0); ctx.lineTo(x(0), y1);
+    ctx.moveTo(x0, y(0)); ctx.lineTo(x1, y(0));
+    ctx.stroke();
+    ctx.fillStyle = '#ffc37b';
+    ctx.fillText('V · N', 6, 11);
+    ctx.fillText(yMax.toFixed(2), 3, y0 + 4);
+    ctx.fillText('−' + yMax.toFixed(2), 3, y1 + 4);
+    ctx.fillStyle = '#9bdfab';
+    ctx.fillText('−' + xMax.toFixed(2), x0, height - 6);
+    ctx.fillText('I · m/s', x(0) - 21, height - 6);
+    ctx.textAlign = 'right';
+    ctx.fillText(xMax.toFixed(2), x1, height - 6);
+    ctx.textAlign = 'left';
+    if (!trace.length) return;
+    ctx.strokeStyle = '#a1dfb2';
+    ctx.lineWidth = 1.5;
+    ctx.beginPath();
+    trace.forEach(([i, v], j) => { if (j) ctx.lineTo(x(i), y(v)); else ctx.moveTo(x(i), y(v)); });
+    ctx.stroke();
+    const [i, v] = trace.at(-1);
+    ctx.fillStyle = '#ffc37b';
+    ctx.beginPath();
+    ctx.arc(x(i), y(v), 2.5, 0, TAU);
+    ctx.fill();
+  }
+
+  function resize() {
+    const width = host.clientWidth, height = host.clientHeight;
+    if (width <= 0 || height <= 0) return;
+    const aspect = width / height;
+    const vertical = Math.max(9.5, 11.2 / aspect);
+    Object.assign(camera, {left: -vertical * aspect / 2, right: vertical * aspect / 2,
+      top: vertical / 2, bottom: -vertical / 2});
+    camera.updateProjectionMatrix();
+    renderer.setSize(width, height, false);
+  }
+
+  reset();
+  setMode();
+  resize();
+  new ResizeObserver(resize).observe(host);
+  let previous = performance.now();
+  function frame(now) {
+    try {
+      if (!paused) {
+        accumulated += Math.min(0.06, (now - previous) / 1000);
+        while (accumulated >= h) {
+          tick();
+          accumulated -= h;
+        }
+      }
+      previous = now;
+      updateReadings();
+      drawScope();
+      controls.update();
+      renderer.render(scene, camera);
+      requestAnimationFrame(frame);
+    } catch (error) {
+      showError(error);
+    }
+  }
+  requestAnimationFrame(frame);
+}
+boot().catch(showError);
+</script>
+</body>
+</html>

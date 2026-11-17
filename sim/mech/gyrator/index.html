@@ -1,0 +1,567 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="color-scheme" content="dark">
+<title>Spintronics · Gyroscope Bench</title>
+<script type="importmap">
+{
+  "imports": {
+    "three": "https://cdn.jsdelivr.net/npm/three@0.160.0/build/three.module.js",
+    "three/addons/": "https://cdn.jsdelivr.net/npm/three@0.160.0/examples/jsm/"
+  }
+}
+</script>
+<style>
+:root{font:14px system-ui,sans-serif;color:#e8ece5;background:#111916;--muted:#a6b2a8;--line:#37433a;--panel:#1a241e;--green:#9bdfab;--amber:#ffc37b;--blue:#a6c8e0}
+*{box-sizing:border-box}
+body,h1,h2,p{margin:0}
+button,select,input{font:inherit}
+button,select{border:1px solid #4a5950;border-radius:6px;background:#222f28;color:inherit;padding:8px 10px}
+button{cursor:pointer}
+button:hover,select:hover{border-color:var(--green)}
+:focus-visible{outline:2px solid var(--green);outline-offset:3px}
+main{max-width:1460px;margin:auto;padding:25px clamp(14px,3vw,44px)}
+header,.toolbar{display:flex;align-items:end;gap:8px;flex-wrap:wrap}
+header{justify-content:space-between;gap:18px;margin-bottom:20px}
+h1{font-size:clamp(28px,3.8vw,46px);font-weight:630;letter-spacing:-.055em;line-height:1}
+.kicker,.field-title{font:600 10px ui-monospace,monospace;text-transform:uppercase;letter-spacing:.13em;color:var(--muted)}
+.kicker{color:var(--green);margin-bottom:8px}
+.toolbar label,.choice{display:grid;gap:5px}
+#pause{min-width:76px;background:#b0e7ba;color:#14291c;border-color:#b0e7ba;font-weight:700}
+.bench{display:grid;grid-template-columns:minmax(0,1fr) clamp(290px,30%,344px);border:1px solid var(--line);border-radius:13px;overflow:hidden;background:#19241f}
+.viewport{position:relative;min-height:620px;isolation:isolate}
+#view,#tags{position:absolute;inset:0}
+#tags{overflow:hidden}
+#view canvas{display:block;width:100%;height:100%;touch-action:none}
+#tags,.view-top,.view-bottom{pointer-events:none}
+.view-top,.view-bottom{position:absolute;left:20px;right:20px;display:flex;justify-content:space-between;gap:12px}
+.view-top{top:17px;align-items:start}
+.view-bottom{bottom:17px;align-items:end}
+.view-top h2{font-size:19px;letter-spacing:-.02em}
+.view-top p,.view-bottom p{color:#c2cec2;font-size:12px;margin-top:5px;line-height:1.45}
+#state,#clock,.tag,output,.key{font:12px ui-monospace,monospace}
+#state,#clock{color:var(--green);text-align:right;white-space:nowrap}
+#validity{color:var(--amber);max-width:24ch;text-align:right}
+.tag{position:absolute;transform:translate(-50%,-50%);border:1px solid #718277;background:#15211bee;border-radius:4px;padding:4px 7px;white-space:nowrap;color:#edf1e7}
+#tag-p1{color:var(--green)}#tag-p2{color:var(--amber)}#tag-fly{color:var(--blue)}
+aside{min-width:0;border-left:1px solid var(--line);background:var(--panel)}
+.panel{padding:15px 16px}
+.panel+.panel{border-top:1px solid var(--line)}
+h2{font-size:15px;font-weight:650}
+.scope-head{display:flex;align-items:center;justify-content:space-between;gap:8px}
+.scope-head select,.choice select{min-width:0;padding:5px 6px;font-size:11px}
+#scope{display:block;width:100%;height:158px;margin:9px 0;background:#121c17;border:1px solid #33443a;border-radius:6px}
+.data{display:grid;grid-template-columns:1fr auto auto;gap:5px 11px;font:11px ui-monospace,monospace;align-items:baseline}
+.data output{text-align:right}
+.data .v{color:var(--amber)}.data .i{color:var(--green)}
+.data .ref{color:var(--blue)}
+.key{color:var(--muted);font-size:10px}
+.choices{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:8px;margin:9px 0}
+.sliders{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:10px 12px}
+.param{display:grid;grid-template-columns:1fr auto;gap:4px;align-items:center;font-size:11px;color:#c5cec5}
+.param output{font-size:10px;color:#e8ece5}
+.param input{width:100%;min-width:0;margin:0;grid-column:1/-1;accent-color:var(--green)}
+#status{color:var(--amber);white-space:pre-wrap}
+[hidden]{display:none!important}
+@media(max-width:800px){.bench{grid-template-columns:1fr}.viewport{min-height:clamp(390px,74vw,570px)}aside{border-left:0;border-top:1px solid var(--line);display:grid;grid-template-columns:repeat(2,minmax(0,1fr))}.panel+.panel{border-top:0;border-left:1px solid var(--line)}}
+@media(max-width:540px){aside{grid-template-columns:1fr}.panel+.panel{border-left:0;border-top:1px solid var(--line)}.view-top,.view-bottom{left:12px;right:12px}.view-top p{max-width:23ch}.view-bottom p{font-size:10px}.tag{font-size:9px;padding:3px 4px}}
+</style>
+</head>
+<body>
+<main>
+  <header>
+    <div><p class="kicker">Spintronics</p><h1>Gyroscope Bench</h1></div>
+    <div class="toolbar">
+      <label for="mode"><span class="field-title">Circuit</span>
+        <select id="mode"><option value="bare">Two-port gyrator</option><option value="loaded">Synthetic inductor</option></select>
+      </label>
+      <button id="reset" type="button">Reset</button>
+      <button id="pause" type="button" aria-pressed="false">Pause</button>
+    </div>
+  </header>
+  <div class="bench">
+    <section class="viewport" aria-label="Interactive 3D mechanism">
+      <div id="view"></div>
+      <div id="tags" aria-hidden="true">
+        <span id="tag-p1" class="tag">P1 · Outer pivot</span>
+        <span id="tag-p2" class="tag">P2 · Inner pivot</span>
+        <span id="tag-fly" class="tag" hidden>Flywheel</span>
+      </div>
+      <div class="view-top">
+        <div><h2 id="scene-title">Two-gimbal gyroscope</h2><p id="description">The spinning rotor couples the two chain sprockets.</p></div>
+        <output id="clock" aria-label="Simulated time">0.00 s</output>
+      </div>
+      <div class="view-bottom">
+        <p>Drag to orbit · Scroll to zoom<br>Rotor shown at 1/24 spin speed</p>
+        <div><p id="validity" hidden>Inner ring outside the small-angle window</p><output id="state"></output></div>
+      </div>
+    </section>
+    <aside aria-label="Measurements and settings">
+      <section class="panel" aria-labelledby="scope-title">
+        <div class="scope-head">
+          <h2 id="scope-title">V–I scope</h2>
+          <select id="trace" aria-label="Scope channels">
+            <option value="own">Driven port</option><option value="cross">Cross-port</option>
+          </select>
+        </div>
+        <canvas id="scope" role="img" aria-label="Live voltage versus current trace"></canvas>
+        <div class="data">
+          <span class="key">PORT</span><span class="key v">V [N]</span><span class="key i">I [m/s]</span>
+          <span>P1</span><output id="v1" class="v">0.000</output><output id="i1" class="i">0.0000</output>
+          <span id="axis2-label">P2</span><output id="v2" class="v">0.000</output><output id="i2" class="i">0.0000</output>
+          <span class="ref" id="fly-label" hidden>Flywheel</span><output id="vf" class="ref" hidden>0.000</output><output id="if" class="ref" hidden>0.0000</output>
+        </div>
+      </section>
+      <section class="panel" aria-labelledby="parameters-title">
+        <h2 id="parameters-title">Drive and mechanism</h2>
+        <div class="choices">
+          <label class="choice"><span class="field-title">Source</span><select id="source"><option value="torque">Torque</option><option value="speed">Speed</option></select></label>
+          <label class="choice"><span class="field-title">Waveform</span><select id="wave"><option value="sine">Sine</option><option value="step">Step</option></select></label>
+          <label class="choice" id="axis-field"><span class="field-title">Drive axis</span><select id="axis"><option value="0">P1 · Outer</option><option value="1">P2 · Inner</option></select></label>
+          <label class="choice" id="load-field"><span class="field-title">Other axis</span><select id="load"><option value="free">Free</option><option value="locked">Held at rest</option></select></label>
+        </div>
+        <div class="sliders" id="sliders"></div>
+      </section>
+    </aside>
+  </div>
+  <p id="status" role="alert" hidden></p>
+</main>
+<script type="module">
+const $ = id => document.getElementById(id);
+const TAU = 2 * Math.PI;
+const clamp = (n, low, high) => Math.min(high, Math.max(low, n));
+
+function showError(error) {
+  $('status').hidden = false;
+  $('status').textContent = `Simulator error: ${error.message}`;
+  console.error(error);
+}
+
+async function boot() {
+  const [T, { OrbitControls }, { create, defaults, KIT_CAPACITANCE, KIT_INDUCTANCE }] = await Promise.all([
+    import('three'), import('three/addons/controls/OrbitControls.js'), import('./model.js'),
+  ]);
+  const h = defaults.fixedStep;
+  const renderer = new T.WebGLRenderer({ antialias: true });
+  renderer.setPixelRatio(Math.min(devicePixelRatio, 2));
+  renderer.setClearColor(0x19241f);
+  renderer.shadowMap.enabled = true;
+  renderer.shadowMap.type = T.PCFSoftShadowMap;
+  $('view').append(renderer.domElement);
+  const scene = new T.Scene();
+  const camera = new T.OrthographicCamera(-5, 5, 4, -4, .05, 50);
+  camera.position.set(5.6, 6.65, 9.5);
+  const orbit = new OrbitControls(camera, renderer.domElement);
+  orbit.target.set(-.55, .95, .05);
+  orbit.enableDamping = true;
+  orbit.minZoom = .55;
+  orbit.maxZoom = 2.8;
+  orbit.maxPolarAngle = Math.PI * .48;
+  scene.add(new T.HemisphereLight(0xfff3dd, 0x77897b, 2.1));
+  const key = new T.DirectionalLight(0xffe5c2, 2.2);
+  key.position.set(-4, 8, 4);
+  key.castShadow = true;
+  Object.assign(key.shadow.camera, { left: -7, right: 7, top: 7, bottom: -7, near: .1, far: 25 });
+  key.shadow.mapSize.set(1024, 1024);
+  key.shadow.normalBias = .027;
+  scene.add(key);
+
+  const mat = (color, metalness = .35, roughness = .43) => new T.MeshStandardMaterial({ color, metalness, roughness });
+  const board = mat(0x364d40, .09, .86), edge = mat(0x24352f), dark = mat(0x30443e);
+  const steel = mat(0x9badab, .72), brass = mat(0xd3a05b, .62), ivory = mat(0xf2dfb6, .18);
+  const p1Mat = mat(0x8cb297, .52), p2Mat = mat(0xc98850, .5), flyMat = mat(0x7799b2, .55);
+  const glass = new T.MeshStandardMaterial({
+    color: 0x9acdc1, transparent: true, opacity: .21, depthWrite: false, side: T.DoubleSide, roughness: .24,
+  });
+  const x = new T.Vector3(1, 0, 0), y = new T.Vector3(0, 1, 0), z = new T.Vector3(0, 0, 1);
+  const group = (parent, x = 0, y = 0, z = 0) => {
+    const node = new T.Group();
+    node.position.set(x, y, z);
+    parent.add(node);
+    return node;
+  };
+  function mesh(parent, geometry, finish, x = 0, y = 0, z = 0, shadow = true) {
+    const node = new T.Mesh(geometry, finish);
+    node.position.set(x, y, z);
+    node.castShadow = shadow;
+    node.receiveShadow = shadow;
+    parent.add(node);
+    return node;
+  }
+  const box = (g, w, h, d, m, ...pos) => mesh(g, new T.BoxGeometry(w, h, d), m, ...pos);
+  function cylinder(g, r, length, m, pos = [0, 0, 0], axis = y) {
+    const node = mesh(g, new T.CylinderGeometry(r, r, length, 48), m, ...pos);
+    node.quaternion.setFromUnitVectors(y, axis);
+    return node;
+  }
+  function ring(g, r, tube, m, pos = [0, 0, 0], axis = y) {
+    const node = mesh(g, new T.TorusGeometry(r, tube, 12, 80), m, ...pos);
+    node.quaternion.setFromUnitVectors(z, axis);
+    return node;
+  }
+  function plate(g, r, thickness, finish, pos = [0, 0, 0]) {
+    cylinder(g, r, thickness, finish, pos);
+    for (let i = 0; i < 4; i++) {
+      const a = TAU * (i + .5) / 4;
+      cylinder(g, .047, .025, steel, [pos[0] + r * .77 * Math.cos(a), pos[1] + thickness / 2, pos[2] + r * .77 * Math.sin(a)]);
+    }
+  }
+
+  box(scene, 9.6, .32, 6.4, edge, 0, -.21, 0);
+  box(scene, 9.48, .12, 6.28, board);
+  const holeGeometry = new T.CircleGeometry(.031, 12).rotateX(-Math.PI / 2);
+  const holes = new T.InstancedMesh(holeGeometry, edge, 19 * 13);
+  const pose = new T.Object3D();
+  for (let row = 0; row < 13; row++) {
+    for (let col = 0; col < 19; col++) {
+      pose.position.set((col - 9) * .47, .062, (row - 6) * .47);
+      pose.updateMatrix();
+      holes.setMatrixAt(row * 19 + col, pose.matrix);
+    }
+  }
+  scene.add(holes);
+
+  const scale = 28;
+  const pitch = defaults.radius * scale;
+  const assembly = group(scene, -.85, 1.68, -.40);
+  const outer = group(assembly), inner = group(outer), rotor = group(inner);
+  ring(outer, 1.53, .080, p1Mat);
+  ring(inner, 1.22, .072, p2Mat);
+  const diskRadius = defaults.rotorRadius * scale;
+  const diskDepth = defaults.rotorThickness * scale;
+  cylinder(rotor, diskRadius, diskDepth, steel);
+  ring(rotor, diskRadius * .88, .041, brass, [0, diskDepth / 2, 0]);
+  cylinder(inner, .112, .55, steel);
+  cylinder(rotor, .22, .12, dark, [0, .12, 0]);
+  cylinder(inner, .23, .12, dark, [0, .36, 0]);
+  box(rotor, .095, .022, .34, ivory, 0, diskDepth / 2 + .02, -.48);
+  for (const sign of [-1, 1]) {
+    // The inner carrier holds the rotor's two spin bearings above and below its hub.
+    const post = box(inner, .13, .59, .15, p2Mat, sign * 1.05, 0, 0);
+    post.rotation.z = sign * -.18;
+    box(inner, 2.12, .077, .13, p2Mat, 0, sign * .30, 0);
+    cylinder(inner, .16, .075, brass, [0, sign * .26, 0]);
+    cylinder(outer, .19, .25, dark, [0, 0, sign * 1.44], z);
+    cylinder(inner, .095, .60, steel, [0, 0, sign * 1.45], z);
+    cylinder(outer, .115, .84, steel, [sign * 1.72, 0, 0], x);
+    cylinder(assembly, .25, .22, dark, [sign * 1.89, 0, 0], x);
+    box(assembly, .31, 1.49, .36, dark, sign * 1.89, -.86, 0);
+    plate(assembly, .41, .12, dark, [sign * 1.89, -1.56, 0]);
+  }
+  mesh(assembly, new T.CylinderGeometry(1.77, 1.77, 1.36, 72, 1, true, Math.PI * .64, Math.PI * .94),
+    glass, 0, -.3, 0, false);
+  const rail = new T.CylinderGeometry(1.78, 1.78, .038, 72, 1, true, Math.PI * .64, Math.PI * .94);
+  mesh(assembly, rail, steel, 0, .385, 0);
+  mesh(assembly, rail, steel, 0, -.975, 0);
+
+  const spring = group(outer, 1.61, 0, 1.74);
+  const springHub = group(spring);
+  cylinder(spring, .49, .18, glass, [0, 0, .15], z);
+  ring(spring, .49, .036, brass, [0, 0, .26], z);
+  cylinder(springHub, .18, .08, brass, [0, 0, .27], z);
+  box(springHub, .34, .055, .024, ivory, .14, 0, .323);
+  const springPositions = new Float32Array(129 * 3);
+  const springMesh = new T.BufferGeometry();
+  springMesh.setAttribute('position', new T.BufferAttribute(springPositions, 3));
+  const coil = new T.Line(springMesh, new T.LineBasicMaterial({ color: 0xffcc82 }));
+  coil.frustumCulled = false;
+  spring.add(coil);
+
+  const fly = group(scene, 2.74, 0, -.8);
+  plate(fly, .92, .20, dark, [0, .16, 0]);
+  const flyRotor = group(fly, 0, .53, 0);
+  cylinder(flyRotor, .74, .19, flyMat);
+  ring(flyRotor, .61, .105, steel);
+  for (let i = 0; i < 3; i++) {
+    const a = i * TAU / 3;
+    mesh(flyRotor, new T.SphereGeometry(.12, 14, 10), steel, .58 * Math.cos(a), .09, .58 * Math.sin(a));
+  }
+  cylinder(flyRotor, .20, .14, brass, [0, .16, 0]);
+  box(flyRotor, .065, .025, .25, ivory, 0, .22, .29);
+
+  const link = new T.BoxGeometry(.114, .065, .095);
+  const chainFinish = mat(0xffffff, .54, .38);
+  const loose = new T.Color(0x617970), taut = new T.Color(0xe0ac73), tint = new T.Color();
+  function makeLoop(parent, origin, direction, normal, span, finish) {
+    const path = group(parent, ...origin);
+    path.quaternion.setFromRotationMatrix(new T.Matrix4().makeBasis(direction,
+      new T.Vector3().crossVectors(normal, direction), normal));
+    const makeSprocket = at => {
+      const wheel = group(path, at, 0, 0);
+      cylinder(wheel, pitch - .045, .13, finish, [0, 0, 0], z);
+      cylinder(wheel, .18, .19, steel, [0, 0, 0], z);
+      for (let i = 0; i < 26; i++) {
+        const a = i * TAU / 26;
+        box(wheel, .096, .075, .11, finish, (pitch - .03) * Math.cos(a), (pitch - .03) * Math.sin(a), 0).rotation.z = a;
+      }
+      box(wheel, .23, .055, .018, ivory, .14, 0, .11);
+      return wheel;
+    };
+    const wheels = [makeSprocket(0), makeSprocket(span)];
+    const half = Math.PI * pitch;
+    const perimeter = 2 * (span + half);
+    const count = Math.round(perimeter / .118);
+    const links = new T.InstancedMesh(link, chainFinish, count);
+    links.frustumCulled = false;
+    links.castShadow = true;
+    path.add(links);
+    const anchor = group(path, span * .49, pitch + .26, 0);
+    function animate(angle, voltage) {
+      for (const wheel of wheels) wheel.rotation.z = angle;
+      const tension = clamp(Math.abs(voltage) / .04, 0, 1);
+      const offset = angle * pitch;
+      for (let i = 0; i < count; i++) {
+        const d = ((i * perimeter / count + offset) % perimeter + perimeter) % perimeter;
+        if (d < span) {
+          pose.position.set(d, -pitch, 0);
+          pose.rotation.z = 0;
+        } else if (d < span + half || d >= 2 * span + half) {
+          const right = d < span + half;
+          const a = right ? (d - span) / pitch - Math.PI / 2 : (d - 2 * span - half) / pitch + Math.PI / 2;
+          pose.position.set((right ? span : 0) + pitch * Math.cos(a), pitch * Math.sin(a), 0);
+          pose.rotation.z = a + Math.PI / 2;
+        } else {
+          pose.position.set(2 * span + half - d, pitch, 0);
+          pose.rotation.z = Math.PI;
+        }
+        pose.updateMatrix();
+        links.setMatrixAt(i, pose.matrix);
+        tint.copy(loose).lerp(taut, tension).multiplyScalar(i % 2 ? .80 : 1);
+        links.setColorAt(i, tint);
+      }
+      links.instanceMatrix.needsUpdate = true;
+      links.instanceColor.needsUpdate = true;
+    }
+    return { animate, anchor };
+  }
+
+  const loop1 = makeLoop(assembly, [-2.12, 0, 0], z, x.clone().negate(), 1.73, p1Mat);
+  const loop2 = makeLoop(outer, [0, 0, 1.74], x, z, 1.61, p2Mat);
+  const flyLoop = makeLoop(fly, [0, .66, 0], z, y, 1.61, flyMat);
+  cylinder(assembly, .107, .31, steel, [-2.00, 0, 1.73], x);
+  box(assembly, .24, 1.49, .28, dark, -1.94, -.86, 1.73);
+  plate(assembly, .33, .12, dark, [-1.94, -1.56, 1.73]);
+  cylinder(outer, .11, .39, steel, [1.61, 0, 1.59], z);
+  box(outer, .23, .17, .91, dark, 1.44, -.06, 1.18).rotation.y = .35;
+  cylinder(fly, .15, .57, dark, [0, .32, 1.61]);
+  const labels = [['tag-p1', loop1.anchor], ['tag-p2', loop2.anchor], ['tag-fly', flyLoop.anchor]];
+
+  const params = {};
+  function slider(id, label, min, max, step, value, display) {
+    const wrapper = document.createElement('label');
+    wrapper.className = 'param';
+    const title = document.createElement('span');
+    title.textContent = label;
+    const input = document.createElement('input');
+    const output = document.createElement('output');
+    Object.assign(input, { id, type: 'range', min, max, step, value });
+    const update = () => {
+      params[id] = Number(input.value);
+      output.textContent = display(params[id]);
+    };
+    input.addEventListener('input', update);
+    update();
+    wrapper.append(title, output, input);
+    $('sliders').append(wrapper);
+    return { wrapper, input };
+  }
+  const torque = slider('torque', 'Torque peak', 0, .8, .005, .185, n => `${n.toFixed(3)} mN·m`);
+  const speed = slider('speed', 'Speed peak', 0, 1.2, .01, .28, n => `${n.toFixed(2)} rad/s`);
+  const frequency = slider('frequency', 'Frequency', .15, 15, .05, .65, n => `${n.toFixed(2)} Hz`);
+  const spin = slider('spin', 'Rotor spin', -500, 500, 5, defaults.spinRate, n => `${n} rad/s`);
+  const mass = slider('mass', 'Rotor mass', 3, 15, .5, defaults.rotorMass * 1000, n => `${n.toFixed(1)} g`);
+  const loss = slider('loss', 'Pivot drag scale', 0, 4, .1, 1, n => `${n.toFixed(1)}×`);
+  const cap = slider('cap', 'Capacitance', .04, .30, .01, KIT_CAPACITANCE, n => `${n.toFixed(2)} m/N`);
+
+  let gyro, loaded, axis, phase, flyCurrent, flyPort, flyAngle, trace, paused = false, debt = 0;
+  let mode, source, termination, wave, scope;
+  function reset() {
+    loaded = $('mode').value === 'loaded';
+    source = $('source').value;
+    termination = $('load').value;
+    wave = $('wave').value;
+    mode = $('trace').value;
+    axis = loaded ? 0 : Number($('axis').value);
+    scope = loaded || mode === 'own' ? axis : 1 - axis;
+    gyro = create({
+      spinRate: params.spin, rotorMass: params.mass / 1000,
+      drag1: params.loss * defaults.drag1, drag2: params.loss * defaults.drag2,
+      capacitance: loaded ? params.cap : 0,
+    });
+    trace = [];
+    phase = debt = flyCurrent = flyAngle = 0;
+    flyPort = { voltage: 0, current: 0 };
+    spring.visible = fly.visible = loaded;
+    for (const id of ['tag-fly', 'fly-label', 'vf', 'if']) $(id).hidden = !loaded;
+    for (const id of ['axis-field', 'load-field', 'trace']) $(id).hidden = loaded;
+    torque.wrapper.hidden = source !== 'torque';
+    speed.wrapper.hidden = source !== 'speed';
+    cap.wrapper.hidden = !loaded;
+    frequency.wrapper.hidden = wave === 'step';
+    $('scene-title').textContent = loaded ? 'Gyrator + torsion spring' : 'Two-gimbal gyroscope';
+    $('description').textContent = loaded ? 'Port 2 winds the spring. Both inputs receive the same drive.' : 'The spinning rotor couples the two chain sprockets.';
+    $('axis2-label').textContent = loaded ? 'P2 spring' : 'P2';
+    $('tag-p2').textContent = loaded ? 'P2 · Torsion spring' : 'P2 · Inner pivot';
+    draw();
+  }
+  for (const id of ['mode', 'source', 'wave', 'axis', 'load', 'trace']) $(id).addEventListener('change', reset);
+  for (const field of [spin, mass, loss, cap]) field.input.addEventListener('change', reset);
+  $('reset').addEventListener('click', reset);
+  $('pause').addEventListener('click', () => {
+    paused = !paused;
+    $('pause').textContent = paused ? 'Resume' : 'Pause';
+    $('pause').setAttribute('aria-pressed', paused);
+  });
+
+  const zeroEffort = { torque: 0 }, zeroSpeed = { speed: 0 };
+  function advance() {
+    const increment = TAU * params.frequency * h;
+    const at = phase + (source === 'speed' ? increment : increment / 2);
+    const amount = wave === 'step' ? 1 : Math.sin(at);
+    const drive = [zeroEffort, zeroEffort];
+    drive[1 - axis] = !loaded && termination === 'locked' ? zeroSpeed : zeroEffort;
+    drive[axis] = source === 'speed' ? { speed: params.speed * amount } : { torque: .001 * params.torque * amount };
+    gyro.step(h, drive);
+    phase = (phase + increment) % TAU;
+    if (loaded) {
+      const { radius } = gyro.properties;
+      const voltage = source === 'torque' ? gyro.ports[0].voltage
+        : KIT_INDUCTANCE * (radius * drive[0].speed - flyCurrent) / h;
+      const endCurrent = source === 'speed' ? radius * drive[0].speed : flyCurrent + h * voltage / KIT_INDUCTANCE;
+      flyPort = { voltage, current: (endCurrent + flyCurrent) / 2 };
+      flyAngle += h * flyPort.current / radius;
+      flyCurrent = endCurrent;
+    }
+  }
+
+  const canvas = $('scope');
+  const ctx = canvas.getContext('2d');
+  if (!ctx) throw Error('Canvas 2D is unavailable');
+  const voltage2 = () => {
+    const { spring: k, radius } = gyro.properties;
+    return loaded ? -k * gyro.state.angle[1] / radius : gyro.ports[1].voltage;
+  };
+  function drawScope() {
+    const { width, height } = canvas.getBoundingClientRect();
+    const pixelRatio = Math.min(devicePixelRatio, 2);
+    const w = Math.max(1, Math.round(width * pixelRatio)), h = Math.max(1, Math.round(height * pixelRatio));
+    if (canvas.width !== w || canvas.height !== h) { canvas.width = w; canvas.height = h; }
+    ctx.setTransform(pixelRatio, 0, 0, pixelRatio, 0, 0);
+    ctx.clearRect(0, 0, width, height);
+    const stopX = width - 14, stopY = height - 25, startX = 34, startY = 10;
+    const centerX = (startX + stopX) / 2, centerY = (startY + stopY) / 2;
+    let maxI = .001, maxV = .002;
+    for (const sample of trace) {
+      maxI = Math.max(maxI, Math.abs(sample.i), loaded ? Math.abs(sample.fi) : 0);
+      maxV = Math.max(maxV, Math.abs(sample.v), loaded ? Math.abs(sample.fv) : 0);
+    }
+    const toX = i => centerX + .92 * (i / maxI) * (stopX - centerX);
+    const toY = v => centerY - .92 * (v / maxV) * (stopY - centerY);
+    ctx.lineWidth = 1;
+    for (let line = 0; line <= 8; line++) {
+      const x = startX + line * (stopX - startX) / 8;
+      const y = startY + line * (stopY - startY) / 8;
+      ctx.strokeStyle = line === 4 ? '#577366' : '#253a31';
+      ctx.beginPath(); ctx.moveTo(x, startY); ctx.lineTo(x, stopY); ctx.stroke();
+      ctx.beginPath(); ctx.moveTo(startX, y); ctx.lineTo(stopX, y); ctx.stroke();
+    }
+    ctx.fillStyle = '#a6b2a8';
+    ctx.font = '10px ui-monospace, monospace';
+    ctx.fillText(`V${scope + 1} [N]`, 4, 12);
+    ctx.fillText(`I${axis + 1} [m/s]`, stopX - 49, height - 6);
+    ctx.fillText(maxV.toPrecision(2), 4, toY(maxV) + 10);
+    ctx.fillText(maxI.toPrecision(2), Math.max(startX, toX(maxI) - 28), stopY + 11);
+    function drawTrace(iKey, vKey, color) {
+      ctx.strokeStyle = color;
+      ctx.lineWidth = 1.65;
+      ctx.beginPath();
+      trace.forEach((sample, n) => {
+        const x = toX(sample[iKey]), y = toY(sample[vKey]);
+        if (n) ctx.lineTo(x, y); else ctx.moveTo(x, y);
+      });
+      ctx.stroke();
+      const last = trace.at(-1);
+      if (last) {
+        ctx.fillStyle = color;
+        ctx.beginPath(); ctx.arc(toX(last[iKey]), toY(last[vKey]), 2.6, 0, TAU); ctx.fill();
+      }
+    }
+    if (loaded) drawTrace('fi', 'fv', '#a6c8e0');
+    drawTrace('i', 'v', '#ffc37b');
+  }
+
+  const world = new T.Vector3();
+  function draw() {
+    const { state, ports, properties } = gyro;
+    const [q1, q2] = state.angle;
+    outer.rotation.x = q1;
+    inner.rotation.z = q2;
+    rotor.rotation.y = properties.spinRate * state.time / 24;
+    loop1.animate(-q1, ports[0].voltage);
+    loop2.animate(q2, voltage2());
+    if (loaded) {
+      flyRotor.rotation.y = flyAngle;
+      flyLoop.animate(flyAngle, flyPort.voltage);
+      springHub.rotation.z = q2;
+      for (let i = 0; i <= 128; i++) {
+        const u = i / 128, angle = (1 - u) * q2 + u * TAU * 2.9, radius = .165 + .294 * u;
+        springPositions.set([radius * Math.cos(angle), radius * Math.sin(angle), .268], 3 * i);
+      }
+      springMesh.attributes.position.needsUpdate = true;
+    }
+    $('v1').textContent = ports[0].voltage.toFixed(3);
+    $('v2').textContent = voltage2().toFixed(3);
+    $('i1').textContent = ports[0].current.toFixed(4);
+    $('i2').textContent = (loaded ? -ports[1].current : ports[1].current).toFixed(4);
+    $('vf').textContent = flyPort.voltage.toFixed(3);
+    $('if').textContent = flyPort.current.toFixed(4);
+    $('clock').textContent = `${state.time.toFixed(2)} s`;
+    $('validity').hidden = Math.abs(q2) <= .25;
+    $('state').textContent = loaded ? `L ≈ ${(properties.l1 + properties.g ** 2 * properties.capacitance).toFixed(3)} kg`
+      : `G = ${properties.g.toFixed(3)} N·s/m`;
+
+    orbit.update();
+    renderer.render(scene, camera);
+    const { clientWidth: width, clientHeight: height } = $('view');
+    for (const [id, anchor] of labels) {
+      anchor.getWorldPosition(world).project(camera);
+      $(id).style.left = `${(world.x + 1) * width / 2}px`;
+      $(id).style.top = `${(1 - world.y) * height / 2}px`;
+    }
+    drawScope();
+  }
+  function resize() {
+    const { clientWidth: width, clientHeight: height } = $('view');
+    if (!width || !height) return;
+    const aspect = width / height;
+    const half = Math.max(3.52, 4.95 / aspect);
+    Object.assign(camera, { left: -half * aspect, right: half * aspect, top: half, bottom: -half });
+    camera.updateProjectionMatrix();
+    renderer.setSize(width, height, false);
+    if (gyro) draw();
+  }
+  new ResizeObserver(resize).observe($('view'));
+  resize();
+  reset();
+  let previous = performance.now();
+  function frame(now) {
+    try {
+      if (!paused) {
+        debt += Math.min(.05, (now - previous) / 1000);
+        while (debt >= h) { advance(); debt -= h; }
+        trace.push({ i: gyro.ports[axis].current, v: gyro.ports[scope].voltage, fi: flyPort.current, fv: flyPort.voltage });
+        if (trace.length > 320) trace.shift();
+      }
+      previous = now;
+      draw();
+      requestAnimationFrame(frame);
+    } catch (error) { showError(error); }
+  }
+  requestAnimationFrame(frame);
+}
+boot().catch(showError);
+</script>
+</body>
+</html>

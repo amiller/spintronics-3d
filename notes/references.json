@@ -1,0 +1,610 @@
+[
+  {
+    "title": "Spintronics – Build Mechanical Circuits",
+    "authors": [
+      "Upper Story"
+    ],
+    "year": null,
+    "url": "https://upperstory.com/en/spintronics/",
+    "kind": "official_page",
+    "verified": true,
+    "note": "Introduces the chain-and-sprocket kit and describes the progression from series and parallel circuits in Act One to amplification, feedback, and oscillators in Act Two."
+  },
+  {
+    "title": "The Science of Spintronics",
+    "authors": [
+      "Upper Story"
+    ],
+    "year": null,
+    "url": "https://upperstory.com/en/spintronics/science/",
+    "kind": "technical_guide",
+    "verified": true,
+    "note": "Pairs mechanical layouts with electrical schematics, defines chain travel as charge and chain force as voltage, and explains the FET analogy. It also discusses stray inductance and capacitance, practical limits, and choice of ground."
+  },
+  {
+    "title": "Spintronics: Build mechanical circuits",
+    "authors": [
+      "Paul Boswell"
+    ],
+    "year": 2021,
+    "url": "https://www.kickstarter.com/projects/upperstory/spintronics-build-mechanical-circuits",
+    "kind": "campaign",
+    "verified": true,
+    "note": "The launch campaign establishes the creator and the funding period. It is the original project record."
+  },
+  {
+    "title": "Spintronics: Build mechanical circuits — Updates",
+    "authors": [
+      "Paul Boswell",
+      "Upper Story"
+    ],
+    "year": null,
+    "url": "https://www.kickstarter.com/projects/upperstory/spintronics-build-mechanical-circuits/posts",
+    "kind": "campaign_updates",
+    "verified": false,
+    "note": "Kickstarter returned the campaign header and update count. The update bodies are unverified at this URL."
+  },
+  {
+    "title": "Spintronics Progress Update #3: The Battery is Complete!",
+    "authors": [
+      "Paul Boswell",
+      "Upper Story"
+    ],
+    "year": 2021,
+    "url": "https://spintronics.backerkit.com/hosted_preorders/project_updates?page=4",
+    "kind": "campaign_update",
+    "verified": true,
+    "note": "This BackerKit archive page records first-sample testing of the injection-moulded battery, including the speed-triggered breaker and a ratchet adjustment."
+  },
+  {
+    "title": "Spintronics Progress Update #15: Shipping Progress",
+    "authors": [
+      "Paul Boswell",
+      "Upper Story"
+    ],
+    "year": 2022,
+    "url": "https://spintronics.backerkit.com/hosted_preorders/project_updates",
+    "kind": "campaign_update",
+    "verified": true,
+    "note": "This BackerKit archive page records fulfilment progress and Boswell’s visit to show Steve Mould the parts and example circuits."
+  },
+  {
+    "title": "Spintronics Act One Puzzle Book PDF",
+    "authors": [
+      "Upper Story"
+    ],
+    "year": null,
+    "url": "https://store.upperstory.com/products/spintronics-act-one-puzzle-book-pdf",
+    "kind": "book_listing",
+    "verified": true,
+    "note": "Publisher listing for the first puzzle book. Full PDF contents and edition year are unverified."
+  },
+  {
+    "title": "Spintronics Act Two Puzzle Book PDF",
+    "authors": [
+      "Upper Story"
+    ],
+    "year": null,
+    "url": "https://store.upperstory.com/products/spintronics-act-two-puzzle-book-pdf",
+    "kind": "book_listing",
+    "verified": true,
+    "note": "Publisher listing for the second puzzle book. Full PDF contents and edition year are unverified."
+  },
+  {
+    "title": "Spintronics Power Pack Puzzle Book PDF",
+    "authors": [
+      "Upper Story"
+    ],
+    "year": null,
+    "url": "https://store.upperstory.com/products/spintronics-power-pack-puzzle-book-pdf",
+    "kind": "book_listing",
+    "verified": true,
+    "note": "Publisher listing for the Power Pack puzzle book. Full PDF contents and edition year are unverified."
+  },
+  {
+    "title": "Hints and Solutions for Spintronics Puzzles",
+    "authors": [
+      "Upper Story"
+    ],
+    "year": null,
+    "url": "https://upperstory.com/en/spintronics/solutions/",
+    "kind": "puzzle_index",
+    "verified": true,
+    "note": "Indexes challenges for Act One, Act Two, and Power Pack, with simulator solution links."
+  },
+  {
+    "title": "Spintronics Simulator",
+    "authors": [
+      "Paul Boswell",
+      "Upper Story"
+    ],
+    "year": null,
+    "url": "https://upperstory.com/en/spintronics/simulator/",
+    "kind": "software_guide",
+    "verified": true,
+    "note": "The official guide links the browser simulator and example parallel, oscillator, and pulse circuits. It credits Boswell and states that the source is licensed CC BY-NC-SA 4.0."
+  },
+  {
+    "title": "Spintronics Simulator (browser app)",
+    "authors": [
+      "Paul Boswell",
+      "Upper Story"
+    ],
+    "year": null,
+    "url": "https://simulator.spintronics.com/",
+    "kind": "web_app",
+    "verified": true,
+    "note": "The browser entry point loads the simulator shell. Interactive operation is unverified."
+  },
+  {
+    "title": "upperstory/spintronics-simulator",
+    "authors": [
+      "Paul Boswell",
+      "Upper Story"
+    ],
+    "year": null,
+    "url": "https://github.com/upperstory/spintronics-simulator",
+    "kind": "repository",
+    "verified": true,
+    "note": "The checkout loads Phaser and Planck.js and represents chains with radius- and wrap-dependent gear constraints (ref/spintronics-simulator/public/index.html:94 and ref/spintronics-simulator/public/part-manager.js:318). Under ref/spintronics-simulator/public/parts/, resistor damping and density scale with R (resistor-part.js:177), inductor density scales with L (inductor-part.js:153), capacitor restoring torque scales with −angle/C (capacitor-part.js:224), the motor applies constant torque while driving (motor-part.js:280), and the sprung transistor gate sets channel damping to max(0.5, 100^(2(1−r)) − 1) for clamped gate travel r (transistor-part.js:273 and transistor-part.js:283)."
+  },
+  {
+    "title": "Spintronics Community Forum",
+    "authors": [
+      "Upper Story",
+      "Forum contributors"
+    ],
+    "year": null,
+    "url": "https://community.spintronics.com/",
+    "kind": "forum",
+    "verified": true,
+    "note": "The Circuits, Theory, Simulator, and New Parts/Modifications categories collect examples, modelling discussions, and hardware changes."
+  },
+  {
+    "title": "Is there a better way to diagram spintronic circuits?",
+    "authors": [
+      "pgboswell",
+      "Forum contributors"
+    ],
+    "year": 2022,
+    "url": "https://community.spintronics.com/t/is-there-a-better-way-to-diagram-spintronic-circuits/57",
+    "kind": "forum_thread",
+    "verified": true,
+    "note": "Discusses how current direction is shown in Spintronics schematics. Boswell explains what the dots on the junction symbols mean."
+  },
+  {
+    "title": "Mechanical circuits: electronics without electricity",
+    "authors": [
+      "Steve Mould"
+    ],
+    "year": 2022,
+    "url": "https://www.youtube.com/watch?v=QrkiJZKJfpY",
+    "kind": "video",
+    "verified": false,
+    "note": "The indexed creator description identifies a demonstration of chain-coupled resistors, inductors, transistors, diodes, batteries, and capacitors. The direct page returned a generic YouTube shell, so video access is unverified."
+  },
+  {
+    "title": "Spintronics First Look",
+    "authors": [
+      "Upper Story"
+    ],
+    "year": 2021,
+    "url": "https://www.youtube.com/watch?v=957kZIBKob8",
+    "kind": "video",
+    "verified": false,
+    "note": "Upper Story’s indexed early look at the kit. The direct page returned a generic YouTube shell, so video access is unverified."
+  },
+  {
+    "title": "Making Non-Electric Circuits With Computer Logic",
+    "authors": [
+      "The Action Lab"
+    ],
+    "year": 2024,
+    "url": "https://youtu.be/heaZ_v8kB88",
+    "kind": "video",
+    "verified": false,
+    "note": "The indexed creator description lists Spintronics. Hackaday’s coverage below identifies the inverter, NAND, and NOR examples, while direct video access is unverified."
+  },
+  {
+    "title": "Computer Logic Spins With No Electricity",
+    "authors": [
+      "Al Williams"
+    ],
+    "year": 2024,
+    "url": "https://hackaday.com/2024/01/21/computer-logic-spins-with-no-electricity/",
+    "kind": "press",
+    "verified": true,
+    "note": "Hackaday describes The Action Lab’s chain-driven inverter, NAND, and NOR, including how the demonstration represents output."
+  },
+  {
+    "title": "Spectacular Spintronics (Mechanical Electronics)",
+    "authors": [
+      "Max Maxfield"
+    ],
+    "year": 2021,
+    "url": "https://www.eejournal.com/article/spectacular-spintronics-mechanical-electronics/",
+    "kind": "press",
+    "verified": true,
+    "note": "EEJournal’s launch-day coverage describes the physical parts with Upper Story animations and shows a simple oscillator."
+  },
+  {
+    "title": "Review: Spintronics uses mesmerizing mechanics to teach electronics",
+    "authors": [
+      "Loz Blain"
+    ],
+    "year": 2023,
+    "url": "https://newatlas.com/games/spintronics-review/",
+    "kind": "press",
+    "verified": true,
+    "note": "New Atlas’s hands-on Act One review shows the component hardware and describes how chain assembly affects puzzle play."
+  },
+  {
+    "title": "Cool demo of mechanical circuits: electronics without electricity",
+    "authors": [
+      "Mark Frauenfelder"
+    ],
+    "year": 2022,
+    "url": "https://boingboing.net/2022/10/27/cool-demo-of-mechanical-circuits-electronics-without-electricity.html",
+    "kind": "press",
+    "verified": true,
+    "note": "Boing Boing’s contemporary notice identifies the kit and embeds Mould’s multi-circuit demonstration."
+  },
+  {
+    "title": "Changing Gears: Startup’s Next Mechanical Game Teaches Electronics",
+    "authors": [
+      "University of Minnesota Research & Innovation Office"
+    ],
+    "year": 2021,
+    "url": "https://research.umn.edu/news/changing-gears-startups-next-mechanical-game-teaches-electronics",
+    "kind": "interview",
+    "verified": true,
+    "note": "This launch profile includes direct comments from Paul Boswell about the move from teaching computing with Turing Tumble to making electronics visible and tactile."
+  },
+  {
+    "title": "82. Turing Tumble Founders Alyssa and Paul Boswell",
+    "authors": [
+      "By All Means",
+      "Alyssa Boswell",
+      "Paul Boswell"
+    ],
+    "year": 2022,
+    "url": "https://podcasts.apple.com/us/podcast/82-turing-tumble-founders-alyssa-and-paul-boswell/id1455668048?i=1000557461337",
+    "kind": "interview",
+    "verified": true,
+    "note": "The episode notes cover the founders’ path from a prototype to two crowdfunding campaigns. Audio playback is unverified."
+  },
+  {
+    "title": "ctfhacker/spintronics-rs (Programmatic Spintronics)",
+    "authors": [
+      "ctfhacker"
+    ],
+    "year": null,
+    "url": "https://github.com/ctfhacker/spintronics-rs",
+    "kind": "repository",
+    "verified": true,
+    "note": "The Rust API constructs simulator circuits and writes .spin save files. Its example creates a motor, adds resistors, connects them, and saves the layout (ref/spintronics-rs/README.md:12)."
+  },
+  {
+    "title": "A Treatise on Electricity and Magnetism, Vol. II",
+    "authors": [
+      "James Clerk Maxwell"
+    ],
+    "year": 1873,
+    "url": "https://stanslegacy.com/documents/a-treatise-on-electricity-and-magnetism-vol-2-1873-part-15",
+    "kind": "book",
+    "verified": true,
+    "note": "In §604 Maxwell treats currents as velocities in a dynamical account of coupled circuits. The passage shows the historical current–velocity correspondence behind the impedance analogy."
+  },
+  {
+    "title": "An introduction to energy harvesting and micro-power management",
+    "authors": [
+      "Aldo Romani"
+    ],
+    "year": 2018,
+    "url": "https://ssie.dei.unipd.it/wp-content/uploads/2018/07/SSIE18_09_Romani.pdf",
+    "kind": "lecture",
+    "verified": true,
+    "note": "The slide on equivalent electromechanical circuits represents the same mass–spring–damper with a Maxwell series RLC circuit and a Firestone parallel circuit. It shows how the choice of analogy affects circuit topology."
+  },
+  {
+    "title": "Bond Graphs: A Unifying Framework for Modelling of Physical Systems",
+    "authors": [
+      "Jan F. Broenink"
+    ],
+    "year": 2020,
+    "url": "https://ris.utwente.nl/ws/files/250822857/Broenink_2020_Bond_graphs_a_unifying_framework_fo.pdf",
+    "kind": "book_chapter",
+    "verified": true,
+    "note": "The impedance analogy pairs force or torque with voltage and linear or angular velocity with current. Applying Broenink’s mapping to Upper Story’s science guide puts Spintronics in the impedance analogy because differential chain tension supplies the force and chain travel per unit time supplies the velocity."
+  },
+  {
+    "title": "Analysis and Design of Engineering Systems",
+    "authors": [
+      "Henry M. Paynter"
+    ],
+    "year": 1961,
+    "url": "https://dirac.ruc.dk/~heine/paynter/analysis_and_design_of_engineering_systems_henry_m_paynter.pdf",
+    "kind": "book",
+    "verified": true,
+    "note": "Paynter’s MIT course notes develop bond graphs from power exchange through paired effort and flow variables. An ideal 0-junction shares effort and balances signed flows, like KCL, and a 1-junction shares flow and balances signed efforts, like KVL."
+  },
+  {
+    "title": "Spintronic Junction Value Pack",
+    "authors": [
+      "Upper Story"
+    ],
+    "year": null,
+    "url": "https://store.upperstory.com/products/spintronic-junction-value-pack",
+    "kind": "technical_guide",
+    "verified": true,
+    "note": "The planetary differential enforces v_bottom = v_middle + v_top for the signed tangential speeds of the sprocket teeth. With chain speed mapped to current, that is Kirchhoff’s current law (KCL) at the junction."
+  },
+  {
+    "title": "Spintronic Inductor (55 H)",
+    "authors": [
+      "Upper Story"
+    ],
+    "year": null,
+    "url": "https://store.upperstory.com/products/spintronic-inductor-56-h",
+    "kind": "technical_guide",
+    "verified": true,
+    "note": "Upper Story describes momentum storage in a rotor with peripheral steel balls. The simulator pivots the rotor against a fixed frame (ref/spintronics-simulator/public/parts/inductor-part.js:64), so its flywheel is a grounded rotational inertia, the fixed-terminal case of Smith’s two-terminal inerter."
+  },
+  {
+    "title": "The Inerter: A Retrospective",
+    "authors": [
+      "Malcolm C. Smith"
+    ],
+    "year": 2020,
+    "url": "https://www.annualreviews.org/content/journals/10.1146/annurev-control-053018-023917",
+    "kind": "journal_article",
+    "verified": true,
+    "note": "Distinguishes the ideal inerter from hardware implementations and discusses the rotational form, where torque is proportional to relative angular acceleration between two terminals."
+  },
+  {
+    "title": "Synthesis of electrical and mechanical networks of restricted complexity",
+    "authors": [
+      "Alessandro Morelli"
+    ],
+    "year": 2019,
+    "url": "https://api.repository.cam.ac.uk/server/api/core/bitstreams/0008b1b9-9d58-4813-8e97-1db41532cc8c/content",
+    "kind": "thesis",
+    "verified": true,
+    "note": "Section 3.5 compares the impedance analogy with Firestone’s 1933 mobility analogy, detailed in the Papers section. In the topology-preserving mobility mapping, nodal force balance corresponds to KCL and the signed sum of relative velocities around a closed mechanical loop corresponds to KVL."
+  },
+  {
+    "title": "The Hydraulic Analogues of Basic Circuits: Labs for Online Learning Environments",
+    "authors": [
+      "J. S. Bobowski"
+    ],
+    "year": 2020,
+    "url": "https://arxiv.org/abs/2011.14081",
+    "kind": "arxiv_preprint",
+    "verified": true,
+    "note": "Uses hydraulic circuits to demonstrate Ohm’s law and RC charging. Flow rate serves as current and pressure difference as voltage, giving another physical analogue for the same circuit laws."
+  },
+  {
+    "title": "Turing Tumble – Build Marble-Powered Computers",
+    "authors": [
+      "Upper Story"
+    ],
+    "year": null,
+    "url": "https://upperstory.com/en/turingtumble/",
+    "kind": "official_page",
+    "verified": true,
+    "note": "Upper Story’s marble-powered logic kit uses mechanical computers to solve puzzles. It provides a comparison with the chain-based circuit kit from the same maker."
+  },
+  {
+    "title": "Turing Tumble: Gaming on a Mechanical Computer",
+    "authors": [
+      "Paul Boswell"
+    ],
+    "year": 2017,
+    "url": "https://turingtumble.backerkit.com/hosted_preorders/project_updates?page=7",
+    "kind": "campaign_updates",
+    "verified": true,
+    "note": "The early campaign updates document Turing Tumble’s crowdfunding and describe its underlying marble-computer puzzle format."
+  },
+  {
+    "title": "Turing Tumble Simulator (ttsim)",
+    "authors": [
+      "Jesse Crossen"
+    ],
+    "year": null,
+    "url": "https://github.com/jessecrossen/ttsim",
+    "kind": "repository",
+    "verified": true,
+    "note": "A browser simulator for the marble kit. It provides a software comparison with the Spintronics simulator."
+  },
+  {
+    "title": "DIGI-COMP 1 model 101 (Educational)",
+    "authors": [
+      "Science Museum Group"
+    ],
+    "year": 1963,
+    "url": "https://collection.sciencemuseumgroup.org.uk/objects/co64111/digi-comp-1-model-101-educational",
+    "kind": "museum_record",
+    "verified": true,
+    "note": "The collection record describes a plastic kit programmed by relocating logic tubes to perform binary arithmetic and other operations. The year refers to the object."
+  },
+  {
+    "title": "Digi-Comp II",
+    "authors": [
+      "System Source Computer Museum",
+      "John Thomas Godfrey"
+    ],
+    "year": 1965,
+    "url": "https://museumlegacy.syssrc.com/artifact/213/",
+    "kind": "museum_record",
+    "verified": true,
+    "note": "The museum describes Godfrey’s marble-driven binary kit, where mechanical switches and flip-flops route the balls to perform arithmetic. The year refers to the design in the record."
+  },
+  {
+    "title": "Manchester University Differential Analyser",
+    "authors": [
+      "Science Museum Group",
+      "Metropolitan-Vickers Electrical Company"
+    ],
+    "year": 1935,
+    "url": "https://collection.sciencemuseumgroup.org.uk/objects/co59975/manchester-university-differential-analyser-analogue-computer-differential-analyser",
+    "kind": "museum_record",
+    "verified": true,
+    "note": "The collection records a machine built for solving differential equations with interconnected mechanical integrators, following Douglas Hartree’s Meccano model. The year refers to the instrument’s completion."
+  },
+  {
+    "title": "William Thomson’s Tide Predicting Machine, 1872",
+    "authors": [
+      "Science Museum Group",
+      "William Thomson"
+    ],
+    "year": 1872,
+    "url": "https://collection.sciencemuseumgroup.org.uk/objects/co53901",
+    "kind": "museum_record",
+    "verified": true,
+    "note": "Describes Kelvin’s geared shafts, cranks, and pulleys for representing tidal constituents and tracing their combined curve. The year refers to the instrument."
+  },
+  {
+    "title": "Tide-Predicting Machine No. 2",
+    "authors": [
+      "NOAA",
+      "Rollin A. Harris",
+      "E. G. Fischer"
+    ],
+    "year": 1910,
+    "url": "https://tidesandcurrents.noaa.gov/predma2.html",
+    "kind": "museum_record",
+    "verified": true,
+    "note": "NOAA documents an instrument that mechanically summed 37 tidal constituents and traced a prediction curve. The year refers to the instrument’s completion."
+  },
+  {
+    "title": "The Mechanical Analog Computers of Hannibal Ford and William Newell",
+    "authors": [
+      "A. Ben Clymer"
+    ],
+    "year": 1993,
+    "url": "https://web.mit.edu/STS.035/www/PDFs/Newell.pdf",
+    "kind": "journal_article",
+    "verified": true,
+    "note": "This historical account traces naval fire-control computers as an application of continuous mechanical computation, from early range keepers through the Second World War."
+  },
+  {
+    "title": "Mechanical Logic Gates With Amplification",
+    "authors": [
+      "Bryan Cockfield"
+    ],
+    "year": 2024,
+    "url": "https://hackaday.com/2024/09/20/mechanical-logic-gates-with-amplification/",
+    "kind": "press",
+    "verified": true,
+    "note": "Reports on capstan lever logic, where a powered pulley supplies output gain. The linked project demonstrates an inverter, half adder, and RS flip-flop."
+  },
+  {
+    "title": "A New Analogy Between Mechanical and Electrical Systems",
+    "authors": [
+      "F. A. Firestone"
+    ],
+    "year": 1933,
+    "url": "https://www.physics.umd.edu/courses/Phys410/Anlage_Fall15/Firestone%20Electro-Mechanical%20Analogy%20Paper%20AJP%201.1915605.pdf",
+    "kind": "journal_article",
+    "verified": true,
+    "note": "Firestone’s mobility analogy maps force to current and velocity to voltage. In this mapping the mechanical network topology is preserved, and mass and spring compliance correspond to capacitance and inductance, respectively."
+  },
+  {
+    "title": "Synthesis of Mechanical Networks: The Inerter",
+    "authors": [
+      "Malcolm C. Smith"
+    ],
+    "year": 2002,
+    "url": "https://www-control.eng.cam.ac.uk/foswiki/pub/Main/MalcolmSmith/cued_control_859.pdf",
+    "kind": "journal_article",
+    "verified": true,
+    "note": "Defines a two-terminal element whose terminal force is proportional to relative acceleration, removing the fixed-terminal restriction of a lumped mass. Smith uses the mobility analogy for synthesis, so the ideal inerter plays the role of a capacitor in that mapping."
+  },
+  {
+    "title": "The Differential Analyzer. A New Machine for Solving Differential Equations",
+    "authors": [
+      "Vannevar Bush"
+    ],
+    "year": 1931,
+    "url": "https://fab.cba.mit.edu/classes/862.22/notes/computation/Bush-1931.pdf",
+    "kind": "journal_article",
+    "verified": true,
+    "note": "Bush describes how reconfigurable shaft connections, mechanical integrators, and torque amplifiers solve ordinary differential equations."
+  },
+  {
+    "title": "Circuit-Based Design of Microfluidic Drop Networks",
+    "authors": [
+      "Nassim Rousset",
+      "Christian Lohasz",
+      "Julia Alicia Boos",
+      "Patrick M. Misun",
+      "Fernando Cardes",
+      "Andreas Hierlemann"
+    ],
+    "year": 2022,
+    "url": "https://www.mdpi.com/2072-666X/13/7/1124",
+    "kind": "journal_article",
+    "verified": true,
+    "note": "The hydraulic analogy maps pressure difference to voltage and volumetric flow rate to current. The paper applies it to channel resistance and extends the circuit model to nonlinear hanging and standing drops."
+  },
+  {
+    "title": "Turing Tumble is Turing-Complete",
+    "authors": [
+      "Lenny Pitt"
+    ],
+    "year": 2021,
+    "url": "https://arxiv.org/abs/2110.09343",
+    "kind": "arxiv_preprint",
+    "verified": true,
+    "note": "Proves universality by simulating a Turing machine on a hypothetical infinitely long board with unlimited pieces. The proof makes explicit which idealisations extend the physical kit."
+  },
+  {
+    "title": "The Design Principles of Konrad Zuse’s Mechanical Computers",
+    "authors": [
+      "Raul Rojas"
+    ],
+    "year": 2016,
+    "url": "https://arxiv.org/abs/1603.02396",
+    "kind": "arxiv_preprint",
+    "verified": true,
+    "note": "Describes the mechanical relays and interconnections of Zuse’s programmable binary Z1. It is an example of digital logic built from plates and rods."
+  },
+  {
+    "title": "Mechanical transistors for logic-with-memory computing",
+    "authors": [
+      "Huyue Chen",
+      "Chao Song",
+      "Jiahao Wu",
+      "Bihui Zou",
+      "Zhihan Zhang",
+      "An Zou",
+      "Yuljae Cho",
+      "Zhaoguang Wang",
+      "Wenming Zhang",
+      "Lei Shao",
+      "Jaehyung Ju"
+    ],
+    "year": 2023,
+    "url": "https://arxiv.org/abs/2306.02352",
+    "kind": "arxiv_preprint",
+    "verified": true,
+    "note": "Uses temperature signals and a bistable mechanical actuator to combine logic and memory. It provides a comparison with Spintronics’ spring-return gate, which controls channel damping."
+  },
+  {
+    "title": "Cascading of Nanomechanical Resonator Logic",
+    "authors": [
+      "T. Jin",
+      "C. G. Baker",
+      "E. Romero",
+      "N. P. Mauranyapin",
+      "T. M. F. Hirsch",
+      "W. P. Bowen",
+      "G. I. Harris"
+    ],
+    "year": 2022,
+    "url": "https://arxiv.org/abs/2212.02673",
+    "kind": "arxiv_preprint",
+    "verified": true,
+    "note": "Models two cascaded nanomechanical NAND gates and identifies a timing constraint on transmitting the output downstream. It analyzes signal transfer between mechanical logic stages at a different scale from capstan or chain logic."
+  }
+]

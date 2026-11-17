@@ -1,0 +1,818 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>Spintronics 3D — circuit-level sim</title>
+<style>
+  html,body{margin:0;height:100%;overflow:hidden;background:#101216;font:13px/1.4 system-ui;color:#ddd}
+  #c{display:block;width:100%;height:100%}
+  #panel{position:fixed;top:10px;left:10px;width:250px;max-height:92vh;overflow-y:auto;background:#1b1e24e8;
+    border:1px solid #333;border-radius:8px;padding:10px 12px;backdrop-filter:blur(4px)}
+  #panel h3{margin:2px 0 8px;font-size:14px;color:#fff}
+  #panel select{width:100%;margin-bottom:8px;background:#262a32;color:#ddd;border:1px solid #444;border-radius:4px;padding:3px}
+  .srow{display:grid;grid-template-columns:1fr 52px;gap:4px;align-items:center;margin:2px 0}
+  .srow label{font-size:11px;color:#9aa}
+  .srow input{width:100%}
+  .srow span{font-size:11px;color:#6cf;text-align:right;font-variant-numeric:tabular-nums}
+  #readouts{margin-top:8px;font:11px/1.5 ui-monospace,monospace;color:#8a9;white-space:pre}
+  #hint{margin-top:8px;font-size:11px;color:#667}
+  #scope{position:fixed;right:10px;bottom:10px;background:#1b1e24e8;border:1px solid #333;border-radius:8px}
+  #testout{position:fixed;top:10px;right:10px;background:#000c;padding:8px 12px;border-radius:6px;
+    font:12px/1.5 ui-monospace,monospace;white-space:pre;color:#8f8}
+</style>
+<script type="importmap">
+{"imports":{
+  "three":"https://cdn.jsdelivr.net/npm/three@0.160.0/build/three.module.js",
+  "three/addons/":"https://cdn.jsdelivr.net/npm/three@0.160.0/examples/jsm/"
+}}
+</script>
+</head>
+<body>
+<div id="panel">
+  <h3>Spintronics 3D</h3>
+  <select id="preset"></select>
+  <div id="sliders"></div>
+  <div id="readouts"></div>
+  <div id="hint">drag a sprocket = apply torque (injects current)<br>click a switch to toggle</div>
+</div>
+<canvas id="scope" width="420" height="190"></canvas>
+<canvas id="c"></canvas>
+<div id="testout" hidden></div>
+<script type="module">
+// ===================== SOLVER BEGIN (pure JS, no deps; extracted by test.mjs) =====================
+// Modified nodal analysis on the equivalent circuit.
+// Chain speed = current [1/s-ish], tension = voltage. Ground = return rail.
+// Trapezoidal companions for C (torsion spring) and L (flywheel inertia);
+// exponential diode (ratchet) + transistor = voltage-controlled resistor
+// R(r) = 100^(2(1-r)) - 1 (r = gate travel fraction), per official simulator
+// transistor-part.js:290. Nonlinear elements solved by iterated linear stamps.
+
+class Lin {
+  constructor(n){ this.n=n; this.a=[...Array(n)].map(()=>new Float64Array(n)); this.b=new Float64Array(n); }
+  solve(){
+    const {a,b,n}=this;
+    for(let c=0;c<n;c++){
+      let p=c;
+      for(let r=c+1;r<n;r++) if(Math.abs(a[r][c])>Math.abs(a[p][c])) p=r;
+      if(Math.abs(a[p][c])<1e-13) throw new Error('singular MNA matrix');
+      if(p!==c){ [a[c],a[p]]=[a[p],a[c]]; const t=b[c]; b[c]=b[p]; b[p]=t; }
+      for(let r=c+1;r<n;r++){
+        const f=a[r][c]/a[c][c];
+        if(!f) continue;
+        for(let k=c;k<n;k++) a[r][k]-=f*a[c][k];
+        b[r]-=f*b[c];
+      }
+    }
+    const x=new Float64Array(n);
+    for(let r=n-1;r>=0;r--){
+      let s=b[r];
+      for(let k=r+1;k<n;k++) s-=a[r][k]*x[k];
+      x[r]=s/a[r][r];
+    }
+    return x;
+  }
+}
+
+const smoothstep=u=>{ u=Math.max(0,Math.min(1,u)); return u*u*(3-2*u); };
+// official transistor channel resistance vs gate travel r (transistor-part.js:290)
+const transR=r=>Math.max(0.5, Math.pow(100, 2*(1-smoothstep(r)))-1);
+
+export class Circuit{
+  constructor(){ this.nodes=['gnd']; this.idx={gnd:0}; this.elems=[]; this.byId={}; this.t=0; this.x=null; }
+  n(id){ if(!(id in this.idx)){ this.idx[id]=this.nodes.length; this.nodes.push(id); } return this.idx[id]; }
+  add(e){
+    e.na=e.a; e.nb=e.b; e.ng=e.g;
+    e.a=this.n(e.a); e.b=this.n(e.b);
+    if(e.g!==undefined) e.g=this.n(e.g);
+    if(e.type==='C'){ e.vc=e.vc0||0; e.ic=null; }
+    if(e.type==='L'){ e.il=null; e.vl=0; }
+    if(e.type==='D'){ e.vd=0; }
+    e.i=0; e.r=0;
+    this.elems.push(e);
+    if(e.id) this.byId[e.id]=e;
+    return e;
+  }
+  v(id){ return this.x?this.x[this.idx[id]]:0; }
+
+  step(h){
+    const t=this.t, els=this.elems, nn=this.nodes.length;
+    const vs=els.filter(e=>e.type==='V');
+    const N=nn+vs.length;
+    let x=(this.x||new Float64Array(N)).slice();
+    const D_IS=2e-10, D_VT=0.02, GMIN=1e-9;
+
+    for(let iter=0; iter<100; iter++){
+      const M=new Lin(N);
+      M.a[0][0]=1; // ground
+      for(const e of els){
+        const va=x[e.a]-x[e.b];
+        let G,J=0;
+        switch(e.type){
+          case 'R': case 'AM': G=1/e.R; break;
+          case 'SW': G=e.on?1e4:1e-9; break;
+          case 'I': M.b[e.a]-=e.I; M.b[e.b]+=e.I; continue;
+          case 'V': {
+            const k=nn+vs.indexOf(e);
+            M.a[e.b][k]+=1; M.a[e.a][k]-=1; M.a[k][e.b]+=1; M.a[k][e.a]-=1;
+            M.b[k]=e.fn?e.fn(t):e.V;
+            continue;
+          }
+          case 'C': if(e.ic===null){ G=e.C/h; J=-G*e.vc; } // first step: backward Euler
+                    else { G=2*e.C/h; J=-(e.ic+G*e.vc); } break; // trapezoidal
+          case 'L': if(e.il===null){ G=h/e.L; J=0; }
+                    else { G=h/(2*e.L); J=e.il+G*e.vl; } break;
+          case 'D': {
+            const vd=Math.max(-1, Math.min(D_VT*80, va));
+            const ex=Math.exp(vd/D_VT);
+            const i=D_IS*(ex-1)+GMIN*va, g=D_IS/D_VT*ex+GMIN, off=i-g*va;
+            G=g; J=off; break;
+          }
+          case 'Q': {
+            const r=(x[e.g]-e.vlo)/(e.vhi-e.vlo);
+            G=1/transR(r); break;
+          }
+        }
+        M.a[e.a][e.a]+=G; M.a[e.b][e.b]+=G; M.a[e.a][e.b]-=G; M.a[e.b][e.a]-=G;
+        M.b[e.a]-=J; M.b[e.b]+=J;
+      }
+      const xn=M.solve();
+      let err=0;
+      for(let i=0;i<N;i++) err=Math.max(err,Math.abs(xn[i]-x[i]));
+      x=xn;
+      if(err<1e-7) break;
+    }
+
+    for(const e of els){
+      const va=x[e.a]-x[e.b];
+      switch(e.type){
+        case 'V': e.i=x[nn+vs.indexOf(e)]; break;
+        case 'R': case 'AM': e.i=va/e.R; break;
+        case 'SW': e.i=va*(e.on?1e4:1e-9); break;
+        case 'I': e.i=e.I; break;
+        case 'C': { const G=e.ic===null?e.C/h:2*e.C/h, J=e.ic===null?-G*e.vc:-(e.ic+G*e.vc);
+          e.ic=G*va+J; e.vc=va; e.i=e.ic; break; }
+        case 'L': { const G=e.il===null?h/e.L:h/(2*e.L), J=e.il===null?0:e.il+G*e.vl;
+          e.il=G*va+J; e.vl=va; e.i=e.il; break; }
+        case 'D': e.vd=va; e.i=D_IS*(Math.exp(Math.max(-1,Math.min(D_VT*80,va))/D_VT)-1)+GMIN*va; break;
+        case 'Q': e.r=smoothstep((x[e.g]-e.vlo)/(e.vhi-e.vlo)); e.i=va/transR(e.r); break;
+      }
+    }
+    this.x=x; this.t+=h;
+  }
+}
+
+export function build(p){
+  const c=new Circuit();
+  for(const d of p.elems) c.add({...d});
+  return c;
+}
+
+export function runFor(p, T, h=1e-3, onStep=null){
+  const c=build(p);
+  const evs=[...(p.events||[])].sort((a,b)=>a.t-b.t);
+  let ei=0;
+  while(c.t<T){
+    while(ei<evs.length && evs[ei].t<=c.t){ const ev=evs[ei++]; c.byId[ev.id][ev.prop]=ev.val; }
+    c.step(h);
+    if(onStep) onStep(c);
+  }
+  return c;
+}
+
+export const PRESETS=[
+{ id:'rc', name:'series RC (charging)',
+  nodes:{gnd:[0,-4.4], n1:[-2,-1], n2:[2,-1]},
+  elems:[
+    {id:'V', type:'V', kind:'battery', a:'gnd', b:'n1', V:6, pos:[-3.2,-2.4]},
+    {id:'R', type:'R', kind:'resistor', a:'n1', b:'n2', R:10},
+    {id:'C', type:'C', kind:'capacitor', a:'n2', b:'gnd', C:0.1, pos:[1.2,-2.6]},
+  ],
+  traces:[{label:'V(C)',k:'v',ref:'n2',col:'#f66'},{label:'I(R)',k:'i',ref:'R',col:'#6cf'}],
+},
+{ id:'rl', name:'series RL',
+  nodes:{gnd:[0,-4.4], n1:[-3.2,0], n2:[-1,0], n3:[1.2,0]},
+  elems:[
+    {id:'V', type:'V', kind:'battery', a:'gnd', b:'n1', V:6, pos:[-4.4,-2.2]},
+    {id:'AM', type:'AM', kind:'ammeter', a:'n1', b:'n2', R:1e-3},
+    {id:'R', type:'R', kind:'resistor', a:'n2', b:'n3', R:10},
+    {id:'L', type:'L', kind:'inductor', a:'n3', b:'gnd', L:10, pos:[2.6,-2.2]},
+  ],
+  traces:[{label:'I(L)',k:'i',ref:'L',col:'#6cf'},{label:'V(L)',k:'v',ref:'n3',col:'#f66'}],
+},
+{ id:'lc', name:'LC tank (charge, then release)',
+  nodes:{gnd:[0,-4.4], nb:[-3.6,0], n1:[-0.4,0.6], nl:[2.8,0.6]},
+  elems:[
+    {id:'V', type:'V', kind:'battery', a:'gnd', b:'nb', V:6, pos:[-4.8,-2.2]},
+    {id:'SW1', type:'SW', kind:'switch', a:'nb', b:'n1', on:true, pos:[-2.2,0.6]},
+    {id:'C', type:'C', kind:'capacitor', a:'n1', b:'gnd', C:1, pos:[-1.6,-1.9]},
+    {id:'SW2', type:'SW', kind:'switch', a:'n1', b:'nl', on:false, pos:[1.2,0.6]},
+    {id:'L', type:'L', kind:'inductor', a:'nl', b:'gnd', L:1, pos:[3.6,-1.9]},
+  ],
+  events:[{t:2, id:'SW1', prop:'on', val:false},{t:2.05, id:'SW2', prop:'on', val:true}],
+  traces:[{label:'V(tank)',k:'v',ref:'n1',col:'#f66'},{label:'I(L)',k:'i',ref:'L',col:'#6cf'}],
+},
+{ id:'rect', name:'AC → full-bridge rectifier + smoothing C',
+  nodes:{gnd:[0,-4.4], ac1:[-3.4,0.9], ac2:[-3.4,-0.9], out:[1.8,0]},
+  elems:[
+    {id:'AC', type:'V', kind:'ac', a:'ac2', b:'ac1', amp:6, freq:0.25, bias:0,
+      fn:function(t){ return this.bias+this.amp*Math.sin(2*Math.PI*this.freq*t); }, pos:[-4.6,0]},
+    {id:'D1', type:'D', kind:'diode', a:'ac1', b:'out', pos:[-0.8,0.6]},
+    {id:'D2', type:'D', kind:'diode', a:'ac2', b:'out', pos:[-0.8,-0.6]},
+    {id:'D3', type:'D', kind:'diode', a:'gnd', b:'ac1', pos:[0.2,1.6]},
+    {id:'D4', type:'D', kind:'diode', a:'gnd', b:'ac2', pos:[0.2,-1.6]},
+    {id:'CS', type:'C', kind:'capacitor', a:'out', b:'gnd', C:0.5, pos:[2.8,-2]},
+    {id:'RL', type:'R', kind:'resistor', a:'out', b:'gnd', R:30, pos:[0.4,-2.4]},
+  ],
+  traces:[{label:'V(out)',k:'v',ref:'out',col:'#f66'},{label:'V(ac)',k:'v',ref:'ac1',col:'#6cf'},{label:'I(ac)',k:'i',ref:'AC',col:'#6f6'}],
+},
+{ id:'ring', name:'3-transistor ring oscillator',
+  nodes:{gnd:[0,-4.6], vcc:[0,2.4], s0:[-2.6,-0.6], s1:[2.6,-0.6], s2:[0,-2.4]},
+  elems:[
+    {id:'V', type:'V', kind:'battery', a:'gnd', b:'vcc', V:6, pos:[4,1.4]},
+    {id:'R0', type:'R', kind:'resistor', a:'vcc', b:'s0', R:20, pos:[-1.6,1.2]},
+    {id:'R1', type:'R', kind:'resistor', a:'vcc', b:'s1', R:20, pos:[1.6,1.2]},
+    {id:'R2', type:'R', kind:'resistor', a:'vcc', b:'s2', R:20, pos:[0,-0.6]},
+    {id:'C0', type:'C', kind:'capacitor', a:'s0', b:'gnd', C:0.2, vc0:6, pos:[-3.6,-2.6]},
+    {id:'C1', type:'C', kind:'capacitor', a:'s1', b:'gnd', C:0.2, pos:[3.6,-2.6]},
+    {id:'C2', type:'C', kind:'capacitor', a:'s2', b:'gnd', C:0.2, pos:[0,-3.6]},
+    {id:'Q0', type:'Q', kind:'transistor', a:'s0', b:'gnd', g:'s1', vlo:1.2, vhi:4, pos:[-1.4,-1.9]},
+    {id:'Q1', type:'Q', kind:'transistor', a:'s1', b:'gnd', g:'s2', vlo:1.2, vhi:4, pos:[1.4,-1.9]},
+    {id:'Q2', type:'Q', kind:'transistor', a:'s2', b:'gnd', g:'s0', vlo:1.2, vhi:4, pos:[2.6,-3.4]},
+  ],
+  traces:[{label:'V(s0)',k:'v',ref:'s0',col:'#f66'},{label:'V(s1)',k:'v',ref:'s1',col:'#6cf'},{label:'V(s2)',k:'v',ref:'s2',col:'#6f6'}],
+},
+{ id:'parr', name:'parallel resistors',
+  nodes:{gnd:[0,-4.4], n1:[0,0.2]},
+  elems:[
+    {id:'V', type:'V', kind:'battery', a:'gnd', b:'n1', V:6, pos:[0,2.6]},
+    {id:'R1', type:'R', kind:'resistor', a:'n1', b:'gnd', R:10, pos:[-2.4,-2.2]},
+    {id:'R2', type:'R', kind:'resistor', a:'n1', b:'gnd', R:20, pos:[0,-2.4]},
+    {id:'R3', type:'R', kind:'resistor', a:'n1', b:'gnd', R:40, pos:[2.4,-2.2]},
+  ],
+  traces:[{label:'I(bat)',k:'i',ref:'V',col:'#6cf'},{label:'V(n1)',k:'v',ref:'n1',col:'#f66'}],
+},
+{ id:'amp', name:'transistor amplifier (inverting)',
+  nodes:{gnd:[0,-4.4], in:[-4,0.6], vcc:[0,2.6], out:[0.6,-0.4], lo:[3.6,0.4]},
+  elems:[
+    {id:'SRC', type:'V', kind:'ac', a:'gnd', b:'in', amp:0.5, freq:0.5, bias:2.5,
+      fn:function(t){ return this.bias+this.amp*Math.sin(2*Math.PI*this.freq*t); }, pos:[-5.4,-1.9]},
+    {id:'BAT', type:'V', kind:'battery', a:'gnd', b:'vcc', V:6, pos:[1.4,2.4]},
+    {id:'RL', type:'R', kind:'resistor', a:'vcc', b:'out', R:20, pos:[-0.9,1.6]},
+    {id:'Q', type:'Q', kind:'transistor', a:'out', b:'gnd', g:'in', vlo:1, vhi:4, pos:[0.8,-2.2]},
+    {id:'CO', type:'C', kind:'capacitor', a:'out', b:'lo', C:0.5, pos:[2.3,-0.1]},
+    {id:'RLO', type:'R', kind:'resistor', a:'lo', b:'gnd', R:100, pos:[4.6,-2]},
+  ],
+  traces:[{label:'V(in)',k:'v',ref:'in',col:'#6cf'},{label:'V(out)',k:'v',ref:'out',col:'#fd6'},{label:'V(load)',k:'v',ref:'lo',col:'#f66'}],
+},
+];
+
+export function runTests(log=console.log){
+  const out=[];
+  const rec=(name,pass,detail)=>{ out.push({name,pass,detail}); log(`${pass?'PASS':'FAIL'} ${name} — ${detail}`); };
+  const P=id=>PRESETS.find(p=>p.id===id);
+  const within=(x,y,tol)=>Math.abs(x-y)/y<=tol;
+
+  { // RC: tau = R*C
+    let t63=0;
+    const c=runFor(P('rc'),4,1e-3,c=>{ if(!t63&&c.v('n2')>=0.6321*c.byId.V.V) t63=c.t; });
+    rec('RC time constant', t63>0&&within(t63,1,0.02), `measured ${t63.toFixed(3)}s, analytic 1.000s (R=10,C=0.1)`);
+  }
+  { // RL: tau = L/R (R of ammeter 1e-3 negligible)
+    let t63=0;
+    const c=runFor(P('rl'),4,1e-3,c=>{ const i=c.byId.L.il, f=0.6321*c.byId.V.V/c.byId.R.R;
+      if(!t63&&i>=f) t63=c.t; });
+    rec('RL time constant', t63>0&&within(t63,1,0.02), `measured ${t63.toFixed(3)}s, analytic ~1.000s (L=10,R=10)`);
+  }
+  { // LC: T = 2π√(LC); starts from pure cap charge (V=6, I_L=0)
+    const v=[];
+    runFor(P('lc'),54,1e-3,c=>{ if(c.t>2.5&&c.t<52.3) v.push([c.t,c.v('n1')]); });
+    const zc=[];
+    for(let k=1;k<v.length;k++) if(v[k-1][1]<0&&v[k][1]>=0) zc.push(v[k-1][0]+v[k-1][1]/(v[k-1][1]-v[k][1])*(v[k][0]-v[k-1][0]));
+    const per=zc.slice(1).map((t,k)=>t-zc[k]);
+    const m=per.reduce((s,x)=>s+x,0)/per.length;
+    const tEnd=v[v.length-1][0], tail=v.filter(p=>p[0]>tEnd-4*Math.PI).map(p=>Math.abs(p[1]));
+    const amp=tail.reduce((s,x)=>s+x,0)/tail.length*Math.PI/2; // mean|v| over 2 full periods = 2A/π
+    rec('LC period', per.length>3&&within(m,2*Math.PI,0.02), `measured ${m.toFixed(4)}s, analytic ${(2*Math.PI).toFixed(4)}s (${per.length} cycles)`);
+    rec('LC amplitude (undamped, starts at 6V/0A)', amp>5.7&&amp<6.2, `amplitude ${amp.toFixed(3)}V`);
+  }
+  { // rectifier: output never negative, ripples below AC peak
+    let mn=1e9,mx=-1e9,sum=0,n=0;
+    runFor(P('rect'),14,1e-3,c=>{ if(c.t>4){ const v=c.v('out'); mn=Math.min(mn,v); mx=Math.max(mx,v); sum+=v; n++; } });
+    rec('rectifier V(out) ≥ 0', mn>-0.02, `min ${mn.toFixed(4)}`);
+    rec('rectifier smoothing', mx<5.95&&mx-sum/n<1.5, `peak ${mx.toFixed(2)}, mean ${(sum/n).toFixed(2)}, ripple pk-mean ${(mx-sum/n).toFixed(2)} (AC pk 6)`);
+  }
+  { // ring oscillator oscillates
+    let cross=0,prev=0,mn=1e9,mx=-1e9;
+    runFor(P('ring'),90,1e-3,c=>{ const v=c.v('s0');
+      if(c.t>6){ if(prev!==0&&prev<3&&v>=3) cross++; prev=v; mn=Math.min(mn,v); mx=Math.max(mx,v); } });
+    rec('ring oscillator', cross>=3&&mx-mn>3, `${cross} rising crossings of V(s0) past 3V, swing ${mn.toFixed(2)}..${mx.toFixed(2)}V`);
+  }
+  { // parallel resistors (e.i of a V source is current into the + terminal, so negate)
+    const c=runFor(P('parr'),0.5);
+    const e=c.byId, want=e.V.V*(1/e.R1.R+1/e.R2.R+1/e.R3.R), got=-e.V.i;
+    rec('parallel resistors', within(got,want,0.02), `I=${got.toFixed(5)}, V·Σ(1/R)=${want.toFixed(5)}`);
+  }
+  { // amplifier: gain > 1, inverted
+    const vin=[],vlo=[];
+    runFor(P('amp'),14,1e-3,c=>{ if(c.t>6){ vin.push(c.v('in')); vlo.push(c.v('lo')); } });
+    const rng=a=>Math.max(...a)-Math.min(...a);
+    const gain=rng(vlo)/rng(vin);
+    const mv=vin.reduce((s,x)=>s+x,0)/vin.length, ml=vlo.reduce((s,x)=>s+x,0)/vlo.length;
+    let cov=0; for(let k=0;k<vin.length;k++) cov+=(vin[k]-mv)*(vlo[k]-ml);
+    rec('amplifier gain', gain>1.2&&gain<6, `gain ${gain.toFixed(2)}× (target ~2.5×)`);
+    rec('amplifier inverts', cov<0, `cov(in,out) ${cov<0?'<':'≥'} 0`);
+  }
+  return out;
+}
+// ===================== SOLVER END =====================
+
+import * as THREE from 'three';
+import {OrbitControls} from 'three/addons/controls/OrbitControls.js';
+
+const $=q=>document.querySelector(q);
+const dispI=e=>e.type==='V'?-e.i:e.i; // source current shown as delivered
+if(new URLSearchParams(location.search).has('test')){
+  const div=$('#testout'); div.hidden=false;
+  const lines=[];
+  const all=runTests(m=>{ console.log(m); lines.push(m); });
+  const np=all.filter(t=>t.pass).length;
+  const summary=`${np}/${all.length} passed`;
+  console.log(summary); lines.push(summary);
+  div.textContent=lines.join('\n');
+}
+
+// ---------- scene ----------
+const renderer=new THREE.WebGLRenderer({canvas:$('#c'),antialias:true});
+renderer.setPixelRatio(Math.min(devicePixelRatio,2));
+const scene=new THREE.Scene();
+scene.background=new THREE.Color(0x101216);
+const camera=new THREE.PerspectiveCamera(50,1,0.1,100);
+camera.position.set(7.5,8.5,9.5);
+const controls=new OrbitControls(camera,renderer.domElement);
+controls.target.set(0,0,-0.5);
+scene.add(new THREE.AmbientLight(0xffffff,0.75));
+const dl=new THREE.DirectionalLight(0xffffff,1.6); dl.position.set(6,10,4); scene.add(dl);
+const dl2=new THREE.DirectionalLight(0x88aaff,0.5); dl2.position.set(-6,6,-6); scene.add(dl2);
+
+const MAT={};
+const mat=(c,rough=0.5,metal=0.3)=>MAT[c+rough+metal]??=new THREE.MeshStandardMaterial({color:c,roughness:rough,metalness:metal});
+const board=new THREE.Group();
+scene.add(board);
+{ // baseboard + grid
+  const b=new THREE.Mesh(new THREE.BoxGeometry(19,0.3,12),mat(0x2a2e36,0.9,0));
+  b.position.y=-0.45; board.add(b);
+  const g=new THREE.GridHelper(19,19,0x3a4048,0x232730); g.position.y=-0.28; board.add(g);
+}
+
+const helix=(r,len,turns,axis)=>{ // axis 'y'|'x'
+  const pts=[];
+  for(let k=0;k<=64;k++){
+    const s=k/64,a=s*turns*2*Math.PI;
+    const p=axis==='y'?new THREE.Vector3(r*Math.cos(a),s*len-len/2,r*Math.sin(a))
+                      :new THREE.Vector3(s*len-len/2,r*Math.cos(a),r*Math.sin(a));
+    pts.push(p);
+  }
+  return new THREE.TubeGeometry(new THREE.CatmullRomCurve3(pts),96,0.035,6);
+};
+const sprocketGeo=new THREE.CylinderGeometry(0.35,0.35,0.14,10);
+const hubGeo=new THREE.CylinderGeometry(0.13,0.13,0.16,10);
+function makeSprocket(r=0.35,color=0x9aa3ad){
+  const g=new THREE.Group();
+  const s=new THREE.Mesh(sprocketGeo,mat(color,0.35,0.8));
+  s.scale.setScalar(r/0.35);
+  const h=new THREE.Mesh(hubGeo,mat(0x39424c,0.4,0.7));
+  h.scale.setScalar(r/0.35);
+  g.add(s,h);
+  return g;
+}
+
+// part builders: chain runs along local +X, terminals at ±half
+const PARTS={
+  battery(e){
+    const g=new THREE.Group();
+    const body=new THREE.Mesh(new THREE.BoxGeometry(1.1,0.62,0.85),mat(0xb03a3a,0.6,0.2)); body.position.set(-0.25,0.45,0);
+    const wheel=makeSprocket(0.24,0xd8c07a); wheel.position.set(-0.25,0.28,0);
+    const spring=new THREE.Mesh(helix(0.16,0.6,6,'y'),mat(0xd8d8d8,0.3,0.9)); spring.position.set(0.5,0.55,0);
+    const breaker=new THREE.Mesh(new THREE.BoxGeometry(0.08,0.4,0.08),mat(0x222,0.5,0.4)); breaker.position.set(-0.8,0.85,0.3);
+    g.add(body,wheel,spring,breaker);
+    g.userData.u={wheel,breaker};
+    return g;
+  },
+  ac(e){
+    const g=new THREE.Group();
+    const post=new THREE.Mesh(new THREE.BoxGeometry(0.15,0.5,0.15),mat(0x777,0.5,0.6)); post.position.set(-0.3,0.25,0);
+    const crank=new THREE.Group();
+    const disc=new THREE.Mesh(new THREE.CylinderGeometry(0.3,0.3,0.08,20),mat(0x4a90d9,0.4,0.4)); disc.rotation.x=Math.PI/2;
+    const pin=new THREE.Mesh(new THREE.CylinderGeometry(0.05,0.05,0.14,8),mat(0xdd8833,0.4,0.6)); pin.rotation.x=Math.PI/2; pin.position.x=0.22;
+    const rod=new THREE.Mesh(new THREE.BoxGeometry(0.5,0.06,0.06),mat(0xbbb,0.4,0.7));
+    crank.add(disc,pin); crank.position.set(0.2,0.62,0);
+    rod.position.set(0.55,0.62,0);
+    g.add(post,crank,rod);
+    g.userData.u={crank,rod,pin,e};
+    return g;
+  },
+  resistor(e){
+    const g=new THREE.Group();
+    const cyl=new THREE.Mesh(new THREE.CylinderGeometry(0.32,0.32,0.9,14),mat(0x8a6a4a,0.7,0.1));
+    cyl.rotation.z=Math.PI/2; cyl.position.y=0.35;
+    const hub=makeSprocket(0.2,0xc9a26a); hub.position.y=0.35;
+    for(let k=0;k<4;k++){
+      const fin=new THREE.Mesh(new THREE.BoxGeometry(0.7,0.34,0.04),mat(0x6a5038,0.7,0.1));
+      const a=k*Math.PI/4;
+      fin.position.set(0,0.35+Math.cos(a)*0.42,Math.sin(a)*0.42);
+      fin.rotation.x=-a;
+      g.add(fin);
+    }
+    g.add(cyl,hub);
+    g.userData.u={hub};
+    return g;
+  },
+  capacitor(e){
+    const g=new THREE.Group();
+    const p1=new THREE.Mesh(new THREE.CylinderGeometry(0.3,0.3,0.08,16),mat(0xd9c34a,0.5,0.5)); p1.rotation.z=Math.PI/2; p1.position.set(-0.3,0.4,0);
+    const p2=p1.clone(); p2.position.x=0.3;
+    const spring=new THREE.Mesh(helix(0.14,0.6,5,'x'),mat(0xd8d8d8,0.3,0.9)); spring.position.y=0.4;
+    const dial=new THREE.Mesh(new THREE.CylinderGeometry(0.3,0.3,0.04,20),mat(0xe8e4d8,0.6,0)); dial.position.set(0,0.78,0);
+    const needle=new THREE.Mesh(new THREE.BoxGeometry(0.27,0.012,0.03),mat(0xcc3333,0.5,0.3)); needle.position.x=0.12;
+    const ng=new THREE.Group(); ng.add(needle); ng.position.set(0,0.815,0);
+    g.add(p1,p2,spring,dial,ng);
+    g.userData.u={needle:ng};
+    return g;
+  },
+  inductor(e){
+    const g=new THREE.Group();
+    const fly=new THREE.Group();
+    const rim=new THREE.Mesh(new THREE.TorusGeometry(0.42,0.09,10,24),mat(0x555e66,0.35,0.85));
+    rim.rotation.x=Math.PI/2;
+    fly.add(rim);
+    for(let k=0;k<4;k++){
+      const sp=new THREE.Mesh(new THREE.BoxGeometry(0.06,0.07,0.8),mat(0x555e66,0.35,0.85));
+      sp.rotation.y=k*Math.PI/4; fly.add(sp);
+    }
+    const axle=new THREE.Mesh(new THREE.CylinderGeometry(0.07,0.07,0.6,10),mat(0x888,0.3,0.9)); axle.position.y=0.1;
+    fly.position.y=0.45;
+    g.add(fly,axle);
+    g.userData.u={fly};
+    return g;
+  },
+  junction(e){
+    const g=new THREE.Group();
+    const cage=new THREE.Mesh(new THREE.TorusGeometry(0.34,0.05,8,20),mat(0x707a84,0.4,0.7));
+    cage.rotation.x=Math.PI/2; cage.position.y=0.35;
+    const spider=new THREE.Group();
+    for(let k=0;k<3;k++){
+      const c=new THREE.Mesh(new THREE.ConeGeometry(0.12,0.14,10),mat(0xaab4be,0.35,0.8));
+      c.position.set(Math.cos(k*2*Math.PI/3)*0.2,0,Math.sin(k*2*Math.PI/3)*0.2);
+      c.rotation.x=Math.PI/2; spider.add(c);
+    }
+    spider.position.y=0.35;
+    g.add(cage,spider);
+    g.userData.u={spider};
+    return g;
+  },
+  diode(e){
+    const g=new THREE.Group();
+    const sk=makeSprocket(0.26,0x8fa4b8); sk.position.y=0.3;
+    const pawl=new THREE.Mesh(new THREE.BoxGeometry(0.06,0.34,0.05),mat(0xcc8833,0.5,0.5));
+    pawl.geometry.translate(0,-0.17,0); pawl.position.set(0,0.72,0.28); pawl.rotation.x=0.5;
+    g.add(sk,pawl);
+    g.userData.u={sk,pawl};
+    return g;
+  },
+  transistor(e){
+    const g=new THREE.Group();
+    const plate=new THREE.Mesh(new THREE.BoxGeometry(1.2,0.14,0.9),mat(0x3a4a3a,0.6,0.3)); plate.position.y=0.12;
+    const ch=makeSprocket(0.26,0x74d98a); ch.position.y=0.32;
+    const pad1=new THREE.Mesh(new THREE.BoxGeometry(0.5,0.1,0.08),mat(0xcc5533,0.5,0.5));
+    const pad2=pad1.clone();
+    pad1.position.set(0,0.32,0.34); pad2.position.set(0,0.32,-0.34);
+    const gate=new THREE.Group();
+    const lever=new THREE.Mesh(new THREE.BoxGeometry(0.08,0.4,0.08),mat(0xd9c34a,0.5,0.5));
+    lever.geometry.translate(0,0.2,0);
+    gate.add(lever); gate.position.set(-0.55,0.2,-0.35);
+    const spr=new THREE.Mesh(helix(0.07,0.3,4,'y'),mat(0xd8d8d8,0.3,0.9)); spr.position.set(-0.55,0.42,-0.35);
+    g.add(plate,ch,pad1,pad2,gate,spr);
+    g.userData.u={ch,pad1,pad2,gate};
+    return g;
+  },
+  switch(e){
+    const g=new THREE.Group();
+    const post1=new THREE.Mesh(new THREE.BoxGeometry(0.1,0.4,0.1),mat(0x888,0.5,0.6)); post1.position.set(-0.45,0.2,0);
+    const post2=post1.clone(); post2.position.x=0.45;
+    const lever=new THREE.Mesh(new THREE.BoxGeometry(1.0,0.08,0.12),mat(0xd9c34a,0.4,0.6));
+    lever.geometry.translate(0.5,0,0); lever.position.set(-0.45,0.42,0);
+    g.add(post1,post2,lever);
+    g.userData.u={lever,e};
+    return g;
+  },
+  ammeter(e){
+    const g=new THREE.Group();
+    const body=new THREE.Mesh(new THREE.BoxGeometry(0.9,0.5,0.7),mat(0x445566,0.6,0.3)); body.position.y=0.3;
+    const dial=new THREE.Mesh(new THREE.CylinderGeometry(0.26,0.26,0.04,20),mat(0xe8e4d8,0.6,0)); dial.position.y=0.58;
+    const needle=new THREE.Mesh(new THREE.BoxGeometry(0.23,0.012,0.03),mat(0x3344cc,0.5,0.3)); needle.position.x=0.1;
+    const ng=new THREE.Group(); ng.add(needle); ng.position.y=0.615;
+    g.add(body,dial,ng);
+    g.userData.u={needle:ng};
+    return g;
+  },
+};
+
+// ---------- circuit + layout ----------
+const H=1e-3, SPACING=0.3, LINK=new THREE.BoxGeometry(0.07,0.05,0.16);
+let circuit=null, preset=null, world=null; // world = {nodes, elems, strands, chain, dragElems}
+
+function loadPreset(p){
+  preset=p;
+  circuit=build(p);
+  if(world) scene.remove(world.root);
+  const root=new THREE.Group(); scene.add(root);
+  world={root,nodes:[],elems:[],strands:[],dragElems:{}};
+
+  // drag-torque current sources: one per non-ground node
+  for(const id of Object.keys(p.nodes)){
+    if(id==='gnd') continue;
+    world.dragElems[id]=circuit.add({type:'I',a:'gnd',b:id,I:0});
+  }
+
+  const np=id=>new THREE.Vector3(p.nodes[id][0],0,p.nodes[id][1]);
+  // ground rail
+  const rail=new THREE.Mesh(new THREE.BoxGeometry(12,0.16,0.5),mat(0x39424c,0.6,0.5));
+  rail.position.copy(np('gnd')).setY(-0.07);
+  world.root.add(rail);
+
+  // nodes: sprockets, junction if degree ≥ 3
+  const deg={};
+  for(const d of p.elems){ deg[d.a]=(deg[d.a]||0)+1; deg[d.b]=(deg[d.b]||0)+1; }
+  const nodeMeshes={};
+  for(const id of Object.keys(p.nodes)){
+    if(id==='gnd') continue;
+    const isJ=(deg[id]||0)>=3;
+    const g=isJ?PARTS.junction():makeSprocket(0.35);
+    g.position.copy(np(id));
+    g.traverse(o=>{o.userData.node=id;});
+    world.root.add(g);
+    world.nodes.push({id,mesh:g,spin:0,dir:1});
+    nodeMeshes[id]=g;
+  }
+
+  // elements: part at pos (or midpoint), terminals at ±half along a→b
+  for(const d of p.elems){
+    if(d.type==='I') continue;
+    const pa=np(d.a), pb=np(d.b);
+    const dir=pb.clone().sub(pa).normalize();
+    const pos=d.pos?new THREE.Vector3(d.pos[0],0,d.pos[1]):pa.clone().add(pb).multiplyScalar(0.5);
+    const half=d.kind==='battery'||d.kind==='ac'?1.1:0.9;
+    const g=PARTS[d.kind](circuit.byId[d.id]);
+    g.position.copy(pos);
+    g.rotation.y=-Math.atan2(dir.z,dir.x);
+    d.swMesh=g;
+    world.root.add(g);
+    const tL=pos.clone().addScaledVector(dir,-half), tR=pos.clone().addScaledVector(dir,half);
+    const sL=makeSprocket(0.22), sR=makeSprocket(0.22);
+    sL.position.copy(tL).setY(0.14); sR.position.copy(tR).setY(0.14);
+    world.root.add(sL,sR);
+    const el={d,e:circuit.byId[d.id],g,tL,tR,sL,sR,ph:0,rotL:0,rotR:0};
+    world.elems.push(el);
+    world.strands.push({el,p0:pa.clone().setY(0.14),p1:tL.clone().setY(0.14)});
+    world.strands.push({el,p0:tR.clone().setY(0.14),p1:pb.clone().setY(0.14)});
+
+    if(d.g){ // gate control link (no current, just visual)
+      const gp=np(d.g);
+      const geo=new THREE.BufferGeometry().setFromPoints([gp.clone().setY(0.35),pos.clone().setY(0.35)]);
+      world.root.add(new THREE.Line(geo,new THREE.LineBasicMaterial({color:0x5a6a5a})));
+    }
+  }
+
+  // node spin sources: strongest incident element current
+  for(const n of world.nodes){
+    n.src=world.elems.filter(el=>el.d.a===n.id||el.d.b===n.id)
+      .sort((a,b)=>Math.abs(b.e.i)-Math.abs(a.e.i))[0];
+  }
+
+  // chain instancing
+  let count=0;
+  for(const s of world.strands){
+    s.n=Math.max(2,Math.round(s.p0.distanceTo(s.p1)/SPACING));
+    count+=s.n;
+  }
+  const lm=new THREE.InstancedMesh(LINK,mat(0x8a8f96,0.5,0.7),count);
+  lm.instanceMatrix.setUsage(THREE.DynamicDrawUsage);
+  const c0=new THREE.Color(1,1,1);
+  for(let k=0;k<count;k++) lm.setColorAt(k,c0);
+  world.linkMesh=lm; world.root.add(lm);
+
+  buildSliders();
+  scope.buf=p.traces.map(()=>[]);
+  $('#readouts').dataset.built='';
+}
+
+// ---------- UI ----------
+const PARAMSPEC={
+  battery:[['V','voltage',0.5,12,0.5]],
+  ac:[['amp','amplitude',0.1,10,0.1],['freq','frequency Hz',0.05,3,0.05],['bias','DC bias',0,6,0.1]],
+  resistor:[['R','resistance',1,200,1]],
+  capacitor:[['C','capacitance',0.01,1,0.01]],
+  inductor:[['L','inductance',0.5,50,0.5]],
+  transistor:[['vlo','gate close V',0,4,0.1],['vhi','gate open V',1,6,0.1]],
+};
+function buildSliders(){
+  const div=$('#sliders'); div.innerHTML='';
+  for(const d of preset.elems){
+    const spec=PARAMSPEC[d.kind];
+    if(!spec) continue;
+    for(const [prop,label,mn,mx,st] of spec){
+      const row=document.createElement('div'); row.className='srow';
+      const lab=document.createElement('label'); lab.textContent=`${d.id}: ${label}`;
+      const inp=document.createElement('input'); inp.type='range'; inp.min=mn; inp.max=mx; inp.step=st;
+      const val=document.createElement('span');
+      const e=circuit.byId[d.id];
+      inp.value=e[prop]; val.textContent=(+e[prop]).toFixed(2);
+      inp.oninput=()=>{ e[prop]=+inp.value; val.textContent=(+inp.value).toFixed(2); };
+      const box=document.createElement('div');
+      box.append(inp,val); row.append(lab,box);
+      div.appendChild(row);
+    }
+  }
+}
+
+const scope={buf:[],t0:0};
+const scopeCv=$('#scope'), sctx=scopeCv.getContext('2d');
+function drawScope(t){
+  const W=scopeCv.width,Hh=scopeCv.height,win=30;
+  sctx.clearRect(0,0,W,Hh);
+  sctx.strokeStyle='#333'; sctx.strokeRect(0.5,0.5,W-1,Hh-1);
+  let mn=1e9,mx=-1e9;
+  for(const b of scope.buf) for(const p of b){ mn=Math.min(mn,p[1]); mx=Math.max(mx,p[1]); }
+  if(mn>mx-1e-9){ mn=-1; mx=1; }
+  const pad=(mx-mn)*0.1+1e-9; mn-=pad; mx+=pad;
+  const Y=v=>Hh-(v-mn)/(mx-mn)*(Hh-16)-8;
+  sctx.strokeStyle='#444'; sctx.beginPath(); sctx.moveTo(0,Y(0)); sctx.lineTo(W,Y(0)); sctx.stroke();
+  preset.traces.forEach((tr,k)=>{
+    const b=scope.buf[k]; if(b.length<2) return;
+    sctx.strokeStyle=tr.col; sctx.lineWidth=1.5; sctx.beginPath();
+    for(let i=0;i<b.length;i++){
+      const x=(b[i][0]-(t-win))/win*W;
+      const y=Y(b[i][1]);
+      i?sctx.lineTo(x,y):sctx.moveTo(x,y);
+    }
+    sctx.stroke();
+    sctx.fillStyle=tr.col; sctx.fillText(tr.label,8,14+k*12);
+  });
+  sctx.fillStyle='#889';
+  sctx.fillText(`${mn.toFixed(2)} … ${mx.toFixed(2)} (window ${win}s)`,W-150,14);
+}
+
+// ---------- interaction ----------
+const ray=new THREE.Raycaster(), ptr=new THREE.Vector2();
+let drag=null;
+function pick(ev){
+  const r=renderer.domElement.getBoundingClientRect();
+  ptr.set((ev.clientX-r.left)/r.width*2-1,-((ev.clientY-r.top)/r.height)*2+1);
+  ray.setFromCamera(ptr,camera);
+  const hits=ray.intersectObjects(world.root.children,true);
+  for(const h of hits){
+    let o=h.object;
+    while(o){ if(o.userData.node) return {node:o.userData.node}; o=o.parent; }
+  }
+  // switch lever?
+  for(const h of hits){
+    let o=h.object;
+    while(o){ if(o.userData.u?.e?.type==='SW') return {sw:o.userData.u.e}; o=o.parent; }
+  }
+  return null;
+}
+renderer.domElement.addEventListener('pointerdown',ev=>{
+  const hit=pick(ev);
+  if(!hit) return;
+  if(hit.sw){ hit.sw.on=!hit.sw.on; return; }
+  const n=world.nodes.find(n=>n.id===hit.node);
+  drag={n,last:screenAngle(ev,n.mesh),lt:performance.now()};
+  controls.enabled=false;
+});
+renderer.domElement.addEventListener('pointermove',ev=>{
+  if(!drag) return;
+  const now=performance.now(), a=screenAngle(ev,drag.n.mesh);
+  const w=(a-drag.last)/(now-drag.lt)*1000;
+  world.dragElems[drag.n.id].I=Math.max(-8,Math.min(8,w*0.8));
+  drag.last=a; drag.lt=now;
+});
+addEventListener('pointerup',()=>{
+  if(!drag) return;
+  world.dragElems[drag.n.id].I=0;
+  drag=null; controls.enabled=true;
+});
+function screenAngle(ev,obj){
+  const v=obj.getWorldPosition(new THREE.Vector3()).project(camera);
+  return Math.atan2(ev.clientY-(1-v.y)/2*innerHeight,(ev.clientX-(1+v.x)/2*innerWidth));
+}
+
+// ---------- animation ----------
+const clock=new THREE.Clock();
+let simT=0,roT=0;
+function frame(){
+  requestAnimationFrame(frame);
+  const dt=Math.min(clock.getDelta(),0.05);
+  const steps=Math.min(Math.round(dt/H),60);
+  const wasT=circuit.t;
+  for(let k=0;k<steps;k++) circuit.step(H);
+  const sdt=circuit.t-wasT;
+  const t=circuit.t;
+
+  const tmp=new THREE.Object3D(), col=new THREE.Color();
+  let idx=0;
+  for(const s of world.strands){
+    const e=s.el.e, dv=Math.abs(circuit.v(s.el.d.a)-circuit.v(s.el.d.b));
+    col.setHSL(0.66*(1-Math.min(1,dv/8)),0.75,0.55);
+    const sag=Math.max(0.04,Math.min(0.5,0.22/(0.25+dv/6)));
+    const mid=s.p0.clone().add(s.p1).multiplyScalar(0.5); mid.y-=sag;
+    const ph=((s.el.ph/SPACING)%1+1)%1;
+    for(let k=0;k<s.n;k++){
+      const u=(((k+ph)/s.n)%1+1)%1;
+      const iu=1-u;
+      tmp.position.set(
+        iu*iu*s.p0.x+2*iu*u*mid.x+u*u*s.p1.x,
+        iu*iu*s.p0.y+2*iu*u*mid.y+u*u*s.p1.y,
+        iu*iu*s.p0.z+2*iu*u*mid.z+u*u*s.p1.z);
+      const dx=2*iu*(mid.x-s.p0.x)+2*u*(s.p1.x-mid.x),
+            dy=2*iu*(mid.y-s.p0.y)+2*u*(s.p1.y-mid.y),
+            dz=2*iu*(mid.z-s.p0.z)+2*u*(s.p1.z-mid.z);
+      tmp.lookAt(tmp.position.x+dx,tmp.position.y+dy,tmp.position.z+dz);
+      tmp.updateMatrix();
+      world.linkMesh.setMatrixAt(idx,tmp.matrix);
+      world.linkMesh.setColorAt(idx,col);
+      idx++;
+    }
+  }
+  world.linkMesh.instanceMatrix.needsUpdate=true;
+  world.linkMesh.instanceColor.needsUpdate=true;
+
+  for(const el of world.elems){
+    const i=el.e.i;
+    el.ph+=i*sdt;
+    el.rotL-=i*sdt/0.22; el.rotR-=i*sdt/0.22;
+    el.sL.rotation.y=el.rotL; el.sR.rotation.y=el.rotR;
+    const u=el.g.userData.u||{};
+    if(u.wheel) u.wheel.rotation.y-=i*sdt*4;
+    if(u.breaker) u.breaker.rotation.z=-0.3*Math.min(1,Math.abs(i));
+    if(u.hub) u.hub.rotation.y-=i*sdt*4;
+    if(u.fly) u.fly.rotation.y-=i*sdt*1.2;
+    if(u.spider) u.spider.rotation.y-=i*sdt*2;
+    if(u.sk){ u.sk.rotation.y-=i*sdt/0.26; u.pawl.rotation.x=0.5-0.12*(0.5+0.5*Math.sin(u.sk.rotation.y*10)); }
+    if(u.needle&&el.d.kind==='capacitor') u.needle.rotation.y=Math.max(-2.5,Math.min(2.5,el.e.vc*1.2));
+    if(u.needle&&el.d.kind==='ammeter') u.needle.rotation.y=Math.max(-2.4,Math.min(2.4,i*2.5));
+    if(u.ch){
+      u.ch.rotation.y-=i*sdt/0.26;
+      u.gate.rotation.y=-(el.e.r||0)*1.1;
+      const pinch=(el.e.r||0)*0.16;
+      u.pad1.position.z=0.34-pinch; u.pad2.position.z=-0.34+pinch;
+    }
+    if(u.lever!==undefined&&el.d.kind==='switch'){
+      const target=el.e.on?0:1.1;
+      u.lever.rotation.y+=(target-u.lever.rotation.y)*Math.min(1,dt*10);
+    }
+    if(u.crank){
+      u.crank.rotation.y=-2*Math.PI*el.e.freq*t;
+      u.rod.position.set(0.55+Math.cos(-2*Math.PI*el.e.freq*t)*0.11,0.62,0);
+    }
+  }
+  for(const n of world.nodes){
+    if(n.src) n.spin=(n.src.d.a===n.id?1:-1)*n.src.e.i;
+    n.mesh.rotation.y-=n.spin*sdt/0.35;
+  }
+
+  preset.traces.forEach((tr,k)=>{
+    const b=scope.buf[k];
+    b.push([t,tr.k==='v'?circuit.v(tr.ref):dispI(circuit.byId[tr.ref])]);
+    while(b.length&&b[0][0]<t-30.5) b.shift();
+  });
+  drawScope(t);
+
+  roT+=dt;
+  if(roT>0.2){
+    roT=0;
+    let s='';
+    for(const id of Object.keys(preset.nodes)) if(id!=='gnd') s+=`V(${id}) ${circuit.v(id).toFixed(3).padStart(8)}\n`;
+    for(const d of preset.elems) if(d.type!=='I') s+=`I(${d.id}) ${dispI(circuit.byId[d.id]).toFixed(3).padStart(8)}  ${d.kind}\n`;
+    $('#readouts').textContent=s;
+  }
+  renderer.render(scene,camera);
+}
+
+function resize(){
+  renderer.setSize(innerWidth,innerHeight,false);
+  camera.aspect=innerWidth/innerHeight;
+  camera.updateProjectionMatrix();
+}
+addEventListener('resize',resize);
+
+// ---------- boot ----------
+const sel=$('#preset');
+for(const p of PRESETS) sel.add(new Option(p.name,p.id));
+sel.onchange=()=>loadPreset(PRESETS.find(p=>p.id===sel.value));
+resize();
+loadPreset(PRESETS[0]);
+frame();
+window._dbg={scene, get world(){return world}, get circuit(){return circuit}}; // console debugging aid
+</script>
+</body>
+</html>
