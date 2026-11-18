@@ -9,7 +9,7 @@ Use mechanical SI in the impedance analogy. For each shaft, $x=r\theta$, $I=r\om
 | Geometry | Value and basis |
 | --- | --- |
 | Chain pitch radii $r_b,r_m,r_t$ | 33.941, 22.6273, 11.3137 mm. Anchor the documented simulator bottom radius and set 3:2:1 for exact rim-speed KCL. The simulator uses 33.941, 22.638, 11.348 mm with a 3:2:1 weighted speed law. [Notes and source](../../../notes/how-it-works.md#L72) |
-| Planet arrangement | Three planets of pitch radius $R_p=3$ mm on orbit $a=9$ mm. Values are from the simulator's inactive sketch. The sketch also gives the 48:12 ring-to-planet tooth ratio. Physical dimensions and counts are **unverified**. [Simulator geometry](../../../ref/spintronics-simulator/public/parts/junction-part.js#L4) · [Planet sketch](../../../ref/spintronics-simulator/public/parts/junction-part.js#L132) · [Tooth ratio](../../../ref/spintronics-simulator/public/parts/junction-part.js#L155) |
+| Planet arrangement | Three planets of pitch radius $R_p=3$ mm on orbit $a=9$ mm. Values are from the simulator's inactive sketch. The sketch also gives the 48:12 ring-to-planet tooth ratio. Physical dimensions and counts are **unverified**. [Simulator geometry](https://github.com/upperstory/spintronics-simulator/blob/251395bb5acad9941f15ea4978266bbe7ee8de00/public/parts/junction-part.js#L4) · [Planet sketch](https://github.com/upperstory/spintronics-simulator/blob/251395bb5acad9941f15ea4978266bbe7ee8de00/public/parts/junction-part.js#L132) · [Tooth ratio](https://github.com/upperstory/spintronics-simulator/blob/251395bb5acad9941f15ea4978266bbe7ee8de00/public/parts/junction-part.js#L155) |
 | Sun and ring | $R_s=a-R_p=6$ mm and $R_r=a+R_p=12$ mm. Equal pitch per tooth gives 24:48:12 for sun, ring, planet. |
 
 ## Equations

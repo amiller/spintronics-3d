@@ -4,7 +4,7 @@ Upper Story identifies a sealed silicone-oil shear chamber, different oil blends
 
 ## Shaft and ports
 
-The pitch radius is **20.584 mm** from the reference simulator. All three levels are on one rigid shaft. With signed angular speed $\omega$ and torque into the part $\tau_p$, use $V_p=\tau_p/r$ in N and $I_p=r\omega$ in m/s. Then $V_pI_p=\tau_p\omega$. For kit units, $V_{\rm spin}=10V$ and $I_{\rm spin}=I/10$. Thus resistance and inductance in spin units are 100 times their chain-side SI values. [Mechanism notes, lines 5–11](../../../notes/how-it-works.md#L5) · [Simulator resistor, lines 38–70](../../../ref/spintronics-simulator/public/parts/resistor-part.js#L38) · [Upper Story units](https://upperstory.com/en/spintronics/science)
+The pitch radius is **20.584 mm** from the reference simulator. All three levels are on one rigid shaft. With signed angular speed $\omega$ and torque into the part $\tau_p$, use $V_p=\tau_p/r$ in N and $I_p=r\omega$ in m/s. Then $V_pI_p=\tau_p\omega$. For kit units, $V_{\rm spin}=10V$ and $I_{\rm spin}=I/10$. Thus resistance and inductance in spin units are 100 times their chain-side SI values. [Mechanism notes, lines 5–11](../../../notes/how-it-works.md#L5) · [Simulator resistor, lines 38–70](https://github.com/upperstory/spintronics-simulator/blob/251395bb5acad9941f15ea4978266bbe7ee8de00/public/parts/resistor-part.js#L38) · [Upper Story units](https://upperstory.com/en/spintronics/science)
 
 The grounded housing supplies the reaction. The shaft obeys
 
@@ -76,7 +76,7 @@ Run `~/.local/bin/node --experimental-default-type=module sim/mech/damper/bench.
 | Oil, science guide endpoint | 5,000 | 4,996.25 | 5,002.12 | 4,993.65 | +0.13% | 0.13% | 4,995.75 | 0.5512 | 0.111 |
 | Eddy | 50 | 50.07 | 50.07 | 50.07 | −0.15% | 0.15% | 50.07 | 1.4647 | 29.251 |
 
-R and L are in spin Ω and spin H. V means spin V. Current error is $100(I/I_{\rm ideal}-1)$ at the same applied voltage. Hardware for the 20 and 2,000 Ω simulator labels and kit inclusion for the 5,000 Ω endpoint are unverified. [Results](results.json) · [Kit contents](https://store.upperstory.com/pages/spintronics-act-one-act-two-and-power-pack-includes) · [Simulator labels](../../../ref/spintronics-simulator/public/parts/resistor-part.js#L8) · [Science guide range](https://upperstory.com/en/spintronics/science)
+R and L are in spin Ω and spin H. V means spin V. Current error is $100(I/I_{\rm ideal}-1)$ at the same applied voltage. Hardware for the 20 and 2,000 Ω simulator labels and kit inclusion for the 5,000 Ω endpoint are unverified. [Results](results.json) · [Kit contents](https://store.upperstory.com/pages/spintronics-act-one-act-two-and-power-pack-includes) · [Simulator labels](https://github.com/upperstory/spintronics-simulator/blob/251395bb5acad9941f15ea4978266bbe7ee8de00/public/parts/resistor-part.js#L8) · [Science guide range](https://upperstory.com/en/spintronics/science)
 
 | At 3 spin V bias | 0.5 Hz | 10 Hz | 100 Hz |
 | --- | ---: | ---: | ---: |
