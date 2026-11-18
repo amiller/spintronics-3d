@@ -35,4 +35,6 @@ Each `sim/mech/<part>/` has `model.js` (the mechanism, a pure ES module with a c
 
 The code was written by coding agents (OpenAI Codex, plus a GLM run in `sim/glm/` that we didn't keep building on), working from the briefs in `briefs/` and reviewed by Claude. `tasks/hillclimb-plan.md` is the plan for leaving it running: a frozen evaluator, gates that can't regress, and a loop that only merges score improvements.
 
-The official simulator's source ([upperstory/spintronics-simulator](https://github.com/upperstory/spintronics-simulator), CC BY-NC-SA 4.0) was read for its part models. None of its code or art is included here.
+The official simulator's source ([upperstory/spintronics-simulator](https://github.com/upperstory/spintronics-simulator), CC BY-NC-SA 4.0) was read for its part models. None of its code or art is included here. The one thing carried over is its transistor damping law, `100^(2(1-r)) - 1`, reimplemented for comparison and cited where used.
+
+MIT licensed, see `LICENSE`.
